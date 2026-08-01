@@ -303,10 +303,12 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
+        flex-wrap: wrap;
       }
 
       .group-title {
         display: grid;
+        flex: 1 1 168px;
         gap: 5px;
         min-width: 0;
       }
@@ -326,8 +328,11 @@
 
       .head-actions {
         display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 8px;
         flex: 0 0 auto;
+        max-width: 232px;
       }
 
       .group-picker {
@@ -362,6 +367,18 @@
         border-radius: 8px;
         background: #ffffff;
         color: var(--ink);
+      }
+
+      .icon-button.success {
+        border-color: #bee7ca;
+        background: #ecf9f1;
+        color: #087a39;
+      }
+
+      .icon-button.danger {
+        border-color: #f3d5ce;
+        background: #fff3f0;
+        color: #bf4b36;
       }
 
       .icon {
@@ -882,6 +899,20 @@
                   <path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" />
                 </svg>
               </button>
+              <button id="toggle-group-complete-button" class="icon-button success" type="button" aria-label="完了にする" title="完了にする">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m5 13 4 4L19 7" />
+                </svg>
+              </button>
+              <button id="delete-group-button" class="icon-button danger" type="button" aria-label="グループを削除" title="グループを削除">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M6 6l1 14h10l1-14" />
+                  <path d="M10 11v5" />
+                  <path d="M14 11v5" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -924,7 +955,7 @@
         <nav class="tabs" aria-label="表示切替">
           <button class="tab active" type="button" data-tab="expenses">支払い</button>
           <button class="tab" type="button" data-tab="settlement">清算</button>
-          <button class="tab" type="button" data-tab="members">メンバー</button>
+          <button class="tab" type="button" data-tab="members">グループ設定</button>
         </nav>
 
         <section id="expenses-view" class="view"></section>
@@ -1095,6 +1126,8 @@
         settlementCount: document.getElementById("settlement-count"),
         openExpense: document.getElementById("open-expense"),
         editGroupNameButton: document.getElementById("edit-group-name-button"),
+        toggleGroupCompleteButton: document.getElementById("toggle-group-complete-button"),
+        deleteGroupButton: document.getElementById("delete-group-button"),
         expensesView: document.getElementById("expenses-view"),
         settlementView: document.getElementById("settlement-view"),
         membersView: document.getElementById("members-view"),
@@ -1487,6 +1520,10 @@
         elements.settlementCount.textContent = `${settlement.items?.length ?? 0}件`;
         elements.openExpense.disabled = completed;
         elements.editGroupNameButton.disabled = !state.activeGroupId || !state.canManage;
+        elements.toggleGroupCompleteButton.hidden = !state.activeGroupId || !state.canManage;
+        elements.deleteGroupButton.hidden = !state.activeGroupId || !state.canManage;
+        elements.toggleGroupCompleteButton.setAttribute("aria-label", completed ? "完了を解除" : "完了にする");
+        elements.toggleGroupCompleteButton.title = completed ? "完了を解除" : "完了にする";
         renderGroupPicker();
         renderMembersStrip();
         renderMyBalance();
@@ -2650,6 +2687,12 @@
       elements.openExpense.addEventListener("click", () => openExpenseSheet());
       document.getElementById("open-group").addEventListener("click", openGroupSheet);
       elements.editGroupNameButton.addEventListener("click", openEditGroupSheet);
+      elements.toggleGroupCompleteButton.addEventListener("click", () => {
+        toggleCurrentGroupCompleted().catch((error) => showToast(error.message));
+      });
+      elements.deleteGroupButton.addEventListener("click", () => {
+        deleteCurrentGroup().catch((error) => showToast(error.message));
+      });
       elements.homeButton.addEventListener("click", goHome);
       elements.brandHome.addEventListener("click", goHome);
       document.getElementById("invite-button").addEventListener("click", () => copyInvite().catch(() => showToast("コピーできませんでした")));
