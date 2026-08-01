@@ -584,6 +584,20 @@
         white-space: nowrap;
       }
 
+      .expense-meta {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .expense-meta .row-meta {
+        overflow: visible;
+        line-height: 1.35;
+        text-overflow: clip;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
       .row-amount {
         color: var(--ink);
         font-size: 15px;
@@ -1645,7 +1659,11 @@
                 <span class="avatar small" style="background:${payer?.color ?? colors[0]}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
                 <div class="row-main">
                   <div class="row-title">${escapeHtml(expense.title)}</div>
-                  <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い / ${escapeHtml(participantLabel)} / 入力 ${escapeHtml(formatExpenseDate(expense.createdAt))}</div>
+                  <div class="expense-meta">
+                    <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い</div>
+                    <div class="row-meta">対象 ${escapeHtml(participantLabel)}</div>
+                    <div class="row-meta">入力 ${escapeHtml(formatExpenseDate(expense.createdAt))}</div>
+                  </div>
                 </div>
                 <div class="row-main" style="justify-items:end">
                   <div class="row-amount">${yen(expense.amount)}</div>
