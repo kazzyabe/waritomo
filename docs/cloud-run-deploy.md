@@ -32,6 +32,7 @@ gcloud run deploy waritomo \
 
 If `DATABASE_URL` is omitted, the frontend falls back to browser-only storage.
 Set `DATABASE_URL` and run the schema migration before using shared groups.
+Run the migration again after schema changes such as group completion fields.
 
 ## Database Migration
 

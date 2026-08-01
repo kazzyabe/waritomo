@@ -93,6 +93,23 @@ Returns group, members, currencies, and current user's role.
 
 Updates group settings. Owner only.
 
+Request:
+
+```json
+{
+  "name": "箱根旅行",
+  "completed": true
+}
+```
+
+`name` renames the group. `completed` marks the group as complete when `true`
+and reopens it when `false`.
+
+### `DELETE /api/groups/:groupId`
+
+Deletes a group and its members, expenses, and settlement confirmations. Owner
+only.
+
 ### `GET /api/invites/:inviteToken`
 
 Returns limited preview for an invite link.

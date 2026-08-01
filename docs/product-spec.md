@@ -53,6 +53,13 @@ LINE.
 2. Other side can confirm it.
 3. Settlement history remains visible.
 
+### Manage Group
+
+1. Organizer can rename a group after creation.
+2. Organizer can mark a group complete so the settled ledger stays in the
+   history list.
+3. Organizer can delete a group when it is no longer needed.
+
 ## MVP Screens
 
 - Home / my groups
@@ -63,6 +70,7 @@ LINE.
 - Expense editor
 - Settlement
 - Member settings
+- Group settings
 - Error / expired invite
 
 ## Non-MVP

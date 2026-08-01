@@ -59,6 +59,11 @@
         cursor: pointer;
       }
 
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.56;
+      }
+
       .app-shell {
         width: min(100%, 480px);
         min-height: 100vh;
@@ -304,6 +309,19 @@
         display: grid;
         gap: 5px;
         min-width: 0;
+      }
+
+      .group-name-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .group-name-line h2 {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .head-actions {
@@ -587,6 +605,12 @@
         white-space: nowrap;
       }
 
+      .tag.complete {
+        border: 1px solid #bee7ca;
+        background: #ecf9f1;
+        color: #087a39;
+      }
+
       .empty-state {
         display: grid;
         gap: 8px;
@@ -819,10 +843,19 @@
           <div class="group-head">
             <div class="group-title">
               <span class="caption">現在のグループ</span>
-              <h2 id="group-name">週末キャンプ</h2>
+              <div class="group-name-line">
+                <h2 id="group-name">週末キャンプ</h2>
+                <span id="group-status" class="tag complete" hidden>完了</span>
+              </div>
               <select id="group-picker" class="group-picker" aria-label="グループ切替"></select>
             </div>
             <div class="head-actions">
+              <button id="edit-group-name-button" class="icon-button" type="button" aria-label="グループ名編集">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="m16.5 3.5 4 4L8 20H4v-4L16.5 3.5z" />
+                </svg>
+              </button>
               <button id="open-group" class="icon-button" type="button" aria-label="グループ作成">
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5v14" />
@@ -949,6 +982,28 @@
       </form>
     </div>
 
+    <div id="edit-group-sheet" class="sheet" hidden>
+      <form id="edit-group-form" class="sheet-panel" autocomplete="off">
+        <div class="sheet-head">
+          <h2>グループ名を編集</h2>
+          <button class="icon-button" type="button" data-close-sheet aria-label="閉じる">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <label>
+            グループ名
+            <input id="edit-group-name" name="name" maxlength="28" required />
+          </label>
+          <div id="edit-group-form-error" class="error-text" aria-live="polite"></div>
+          <button class="button" type="submit">保存する</button>
+        </div>
+      </form>
+    </div>
+
     <div id="toast" class="toast" role="status" hidden></div>
 
     <script>
@@ -961,6 +1016,7 @@
         activeTab: "expenses",
         inviteToken: "",
         canManage: true,
+        completedAt: null,
         settlementChecks: {},
         groups: [],
         members: [
@@ -970,11 +1026,11 @@
           { id: "ren", name: "れん", color: "#9b7a2e" },
         ],
         expenses: [
-          { id: "e1", title: "スーパー", amount: 12840, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
-          { id: "e2", title: "高速代", amount: 7800, payerMemberId: "yu", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
-          { id: "e3", title: "温泉", amount: 4500, payerMemberId: "mai", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
-          { id: "e4", title: "朝ごはん", amount: 3600, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu"] },
-          { id: "e5", title: "ガソリン", amount: 9600, payerMemberId: "ren", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
+          { id: "e1", title: "スーパー", amount: 12840, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T10:15:00+09:00" },
+          { id: "e2", title: "高速代", amount: 7800, payerMemberId: "yu", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T12:30:00+09:00" },
+          { id: "e3", title: "温泉", amount: 4500, payerMemberId: "mai", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T17:40:00+09:00" },
+          { id: "e4", title: "朝ごはん", amount: 3600, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu"], createdAt: "2026-07-27T08:20:00+09:00" },
+          { id: "e5", title: "ガソリン", amount: 9600, payerMemberId: "ren", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-27T11:05:00+09:00" },
         ],
       };
 
@@ -1004,6 +1060,12 @@
         hour: "2-digit",
         minute: "2-digit",
       });
+      const expenseDateFormatter = new Intl.DateTimeFormat("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 
       const elements = {
         homeButton: document.getElementById("home-button"),
@@ -1011,19 +1073,24 @@
         detailView: document.getElementById("detail-view"),
         connectionStatus: document.getElementById("connection-status"),
         groupName: document.getElementById("group-name"),
+        groupStatus: document.getElementById("group-status"),
         totalAmount: document.getElementById("total-amount"),
         memberStrip: document.getElementById("member-strip"),
         myBalance: document.getElementById("my-balance"),
         myBalanceMetric: document.getElementById("my-balance-metric"),
         settlementCount: document.getElementById("settlement-count"),
+        openExpense: document.getElementById("open-expense"),
+        editGroupNameButton: document.getElementById("edit-group-name-button"),
         expensesView: document.getElementById("expenses-view"),
         settlementView: document.getElementById("settlement-view"),
         membersView: document.getElementById("members-view"),
         groupPicker: document.getElementById("group-picker"),
         sheet: document.getElementById("expense-sheet"),
         groupSheet: document.getElementById("group-sheet"),
+        editGroupSheet: document.getElementById("edit-group-sheet"),
         form: document.getElementById("expense-form"),
         groupForm: document.getElementById("group-form"),
+        editGroupForm: document.getElementById("edit-group-form"),
         expenseSheetTitle: document.getElementById("expense-sheet-title"),
         expenseSubmit: document.getElementById("expense-submit"),
         title: document.getElementById("expense-title"),
@@ -1034,6 +1101,8 @@
         newGroupName: document.getElementById("new-group-name"),
         newGroupMembers: document.getElementById("new-group-members"),
         groupFormError: document.getElementById("group-form-error"),
+        editGroupName: document.getElementById("edit-group-name"),
+        editGroupFormError: document.getElementById("edit-group-form-error"),
         brandHome: document.getElementById("brand-home"),
         toast: document.getElementById("toast"),
       };
@@ -1074,6 +1143,15 @@
         });
       }
 
+      function normalizeExpenses(expenses, fallbackDate = new Date().toISOString()) {
+        return (expenses ?? []).map((expense) => ({
+          ...expense,
+          amount: Number(expense.amount || 0),
+          debtorMemberIds: Array.isArray(expense.debtorMemberIds) ? expense.debtorMemberIds.map(String) : [],
+          createdAt: expense.createdAt || expense.created_at || fallbackDate,
+        }));
+      }
+
       function normalizeState(nextState) {
         if (Array.isArray(nextState?.groups) && nextState.groups.length === 0 && !nextState.activeGroupId) {
           return emptyRemoteState([]);
@@ -1086,6 +1164,7 @@
           activeTab: nextState.activeTab || "expenses",
           inviteToken: nextState.inviteToken || "",
           canManage: nextState.canManage !== false,
+          completedAt: nextState.completedAt || null,
           settlementChecks: nextState.settlementChecks ?? {},
           groups: Array.isArray(nextState.groups) ? nextState.groups : [],
         };
@@ -1100,22 +1179,24 @@
         normalized.groupName = activeGroup.groupName;
         normalized.inviteToken = activeGroup.inviteToken || normalized.inviteToken || "";
         normalized.canManage = activeGroup.canManage !== false;
+        normalized.completedAt = activeGroup.completedAt || null;
         normalized.settlementChecks = activeGroup.settlementChecks ?? normalized.settlementChecks ?? {};
         normalized.members = normalizeMemberLinks(structuredClone(activeGroup.members ?? []));
-        normalized.expenses = structuredClone(activeGroup.expenses ?? []);
+        normalized.expenses = normalizeExpenses(structuredClone(activeGroup.expenses ?? []), activeGroup.updatedAt);
         return normalized;
       }
 
       function snapshotCurrentGroup(source = state, id = source.activeGroupId, options = {}) {
         const existing = source.groups?.find((group) => group.id === id);
         const members = structuredClone(source.members ?? []);
-        const expenses = structuredClone(source.expenses ?? []);
+        const expenses = normalizeExpenses(structuredClone(source.expenses ?? []), source.updatedAt);
         return normalizeGroupSummary(
           {
             id,
             groupName: source.groupName,
             inviteToken: source.inviteToken,
             canManage: source.canManage,
+            completedAt: source.completedAt || null,
             settlementChecks: source.settlementChecks,
             members,
             expenses,
@@ -1127,7 +1208,12 @@
 
       function normalizeGroupSummary(group, fallback = {}, options = {}) {
         const members = group.members ?? fallback.members ?? [];
-        const expenses = group.expenses ?? fallback.expenses ?? [];
+        const expenses = normalizeExpenses(group.expenses ?? fallback.expenses ?? [], group.updatedAt || fallback.updatedAt);
+        const completedAt = Object.hasOwn(group, "completedAt")
+          ? group.completedAt
+          : Object.hasOwn(group, "completed_at")
+            ? group.completed_at
+            : fallback.completedAt || null;
         const totalAmount = expenses.length
           ? expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
           : Number(group.totalAmount ?? fallback.totalAmount ?? 0);
@@ -1142,11 +1228,12 @@
           expenseCount: Number(group.expenseCount ?? fallback.expenseCount ?? expenses.length ?? 0),
           totalAmount,
           updatedAt,
+          completedAt,
           inviteToken: group.inviteToken || fallback.inviteToken || "",
           canManage: group.canManage ?? fallback.canManage ?? true,
           settlementChecks: group.settlementChecks ?? fallback.settlementChecks ?? {},
           ...(group.members ? { members: structuredClone(group.members) } : {}),
-          ...(group.expenses ? { expenses: structuredClone(group.expenses) } : {}),
+          ...(group.expenses ? { expenses } : {}),
         };
       }
 
@@ -1166,6 +1253,7 @@
           activeTab: "expenses",
           inviteToken: "",
           canManage: false,
+          completedAt: null,
           settlementChecks: {},
           groups,
           members: [],
@@ -1206,6 +1294,16 @@
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return "最近";
         return updatedAtFormatter.format(date);
+      }
+
+      function formatExpenseDate(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "日付不明";
+        return expenseDateFormatter.format(date);
+      }
+
+      function isCurrentGroupCompleted() {
+        return Boolean(state.completedAt);
       }
 
       function settlementItemKey(item) {
@@ -1260,11 +1358,12 @@
           groupName: group.groupName,
           inviteToken: group.inviteToken || "",
           canManage: group.canManage !== false,
+          completedAt: group.completedAt || null,
           settlementChecks: state.settlementChecks ?? {},
           activeTab: state.activeTab || "expenses",
           groups: upsertGroupSummary(groupSummaries, group, options),
           members,
-          expenses: group.expenses ?? [],
+          expenses: normalizeExpenses(group.expenses ?? [], group.updatedAt),
         };
       }
 
@@ -1363,13 +1462,17 @@
 
       function render() {
         if (!state.activeGroupId) currentScreen = "home";
+        const completed = isCurrentGroupCompleted();
         elements.homeView.hidden = currentScreen !== "home";
         elements.detailView.hidden = currentScreen !== "detail";
         elements.homeButton.hidden = currentScreen === "home";
         renderHomeView();
         elements.groupName.textContent = state.groupName;
+        elements.groupStatus.hidden = !completed;
         elements.totalAmount.textContent = yen(totalExpenses());
         elements.settlementCount.textContent = `${settlement.items?.length ?? 0}件`;
+        elements.openExpense.disabled = completed;
+        elements.editGroupNameButton.disabled = !state.activeGroupId || !state.canManage;
         renderGroupPicker();
         renderMembersStrip();
         renderMyBalance();
@@ -1399,6 +1502,7 @@
                 <div class="row-main">
                   <div class="row-amount">${yen(group.totalAmount)}</div>
                   <div class="home-badges">
+                    ${group.completedAt ? `<span class="tag complete">完了</span>` : ""}
                     <span class="tag">${Number(group.memberCount || 0)}人</span>
                     <span class="tag">${Number(group.expenseCount || 0)}件</span>
                   </div>
@@ -1522,6 +1626,7 @@
       }
 
       function renderExpensesView() {
+        const completed = isCurrentGroupCompleted();
         const rows = state.expenses
           .map((expense) => {
             const payer = memberById(expense.payerMemberId);
@@ -1529,19 +1634,22 @@
               expense.debtorMemberIds.length === state.members.length
                 ? "全員"
                 : expense.debtorMemberIds.map((id) => memberById(id)?.name).filter(Boolean).join("・");
+            const actionButtons = completed
+              ? ""
+              : `
+                    <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
+                    <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
+                  `;
             return `
               <div class="expense-row">
                 <span class="avatar small" style="background:${payer?.color ?? colors[0]}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
                 <div class="row-main">
                   <div class="row-title">${escapeHtml(expense.title)}</div>
-                  <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い / ${escapeHtml(participantLabel)}</div>
+                  <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い / ${escapeHtml(participantLabel)} / 入力 ${escapeHtml(formatExpenseDate(expense.createdAt))}</div>
                 </div>
                 <div class="row-main" style="justify-items:end">
                   <div class="row-amount">${yen(expense.amount)}</div>
-                  <div class="inline-actions">
-                    <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
-                    <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
-                  </div>
+                  ${actionButtons ? `<div class="inline-actions">${actionButtons}</div>` : ""}
                 </div>
               </div>`;
           })
@@ -1630,6 +1738,7 @@
       }
 
       function renderMembersView() {
+        const completed = isCurrentGroupCompleted();
         const rows = state.members
           .map(
             (member) => {
@@ -1640,7 +1749,7 @@
                   ? `<button class="mini-action" type="button" data-claim-member="${member.id}">自分にする</button>`
                   : `<span class="tag">参加済み</span>`;
               const deleteAction =
-                state.members.length > 2
+                !completed && state.members.length > 2
                   ? `<button class="mini-action danger" type="button" data-delete-member="${member.id}">削除</button>`
                   : "";
               return `
@@ -1674,9 +1783,10 @@
             <div class="sheet-body">
               <label>
                 名前
-                <input id="member-name" maxlength="16" required placeholder="例: さき" />
+                <input id="member-name" maxlength="16" required placeholder="例: さき" ${completed ? "disabled" : ""} />
               </label>
-              <button class="button secondary" type="submit">追加する</button>
+              ${completed ? `<p class="row-meta">完了済みのため、メンバーを変更するには完了を解除してください。</p>` : ""}
+              <button class="button secondary" type="submit" ${completed ? "disabled" : ""}>追加する</button>
             </div>
           </form>
           <div class="section">
@@ -1684,11 +1794,21 @@
               <h2>グループ設定</h2>
             </div>
             <div class="sheet-body">
+              ${
+                state.canManage
+                  ? `<button class="button subtle" type="button" data-action="edit-group-name">グループ名を編集</button>`
+                  : `<p class="row-meta">グループ名の編集は作成者だけが実行できます。</p>`
+              }
+              ${
+                state.canManage
+                  ? `<button class="button secondary" type="button" data-action="toggle-group-complete">${completed ? "完了を解除" : "完了にする"}</button>`
+                  : `<p class="row-meta">完了状態の変更は作成者だけが実行できます。</p>`
+              }
               <button class="button secondary" type="button" data-action="copy-invite">招待リンク</button>
               ${
                 state.canManage
-                  ? `<button class="button danger" type="button" data-action="archive-group">アーカイブ</button>`
-                  : `<p class="row-meta">グループのアーカイブは作成者だけが実行できます。</p>`
+                  ? `<button class="button danger" type="button" data-action="delete-group">グループを削除</button>`
+                  : `<p class="row-meta">グループの削除は作成者だけが実行できます。</p>`
               }
             </div>
           </div>`;
@@ -1717,6 +1837,10 @@
           openGroupSheet();
           return;
         }
+        if (isCurrentGroupCompleted()) {
+          showToast("完了済みです。編集する場合は完了を解除してください");
+          return;
+        }
         if (state.members.length < 2) {
           showToast("メンバーを2人以上にしてください");
           return;
@@ -1743,6 +1867,19 @@
         elements.newGroupName.focus();
       }
 
+      function openEditGroupSheet() {
+        if (!state.activeGroupId) return;
+        if (!state.canManage) {
+          showToast("グループ名の編集は作成者だけが実行できます");
+          return;
+        }
+        elements.editGroupFormError.textContent = "";
+        elements.editGroupName.value = state.groupName;
+        elements.editGroupSheet.hidden = false;
+        elements.editGroupName.focus();
+        elements.editGroupName.select();
+      }
+
       function closeExpenseSheet() {
         elements.sheet.hidden = true;
         editingExpenseId = "";
@@ -1752,9 +1889,14 @@
         elements.groupSheet.hidden = true;
       }
 
+      function closeEditGroupSheet() {
+        elements.editGroupSheet.hidden = true;
+      }
+
       function closeAllSheets() {
         closeExpenseSheet();
         closeGroupSheet();
+        closeEditGroupSheet();
       }
 
       function expensePayloadFromForm(formData) {
@@ -1803,7 +1945,9 @@
           amount,
           payerMemberId,
           debtorMemberIds,
+          createdAt: new Date().toISOString(),
         });
+        state.completedAt = null;
         state.settlementChecks = {};
         saveState({ touch: true });
         closeExpenseSheet();
@@ -1829,6 +1973,7 @@
         }
 
         state.expenses = state.expenses.map((expense) => (expense.id === expenseId ? { ...expense, ...payload } : expense));
+        state.completedAt = null;
         state.settlementChecks = {};
         saveState({ touch: true });
         closeExpenseSheet();
@@ -1863,9 +2008,10 @@
         state.groupName = nextGroup.groupName;
         state.inviteToken = nextGroup.inviteToken || "";
         state.canManage = nextGroup.canManage !== false;
+        state.completedAt = nextGroup.completedAt || null;
         state.settlementChecks = nextGroup.settlementChecks ?? {};
         state.members = structuredClone(nextGroup.members);
-        state.expenses = structuredClone(nextGroup.expenses);
+        state.expenses = normalizeExpenses(structuredClone(nextGroup.expenses), nextGroup.updatedAt);
         state.activeTab = "expenses";
         if (openDetail) currentScreen = "detail";
         saveState();
@@ -1918,6 +2064,7 @@
           groupName,
           inviteToken: "",
           canManage: true,
+          completedAt: null,
           settlementChecks: {},
           members,
           expenses: [],
@@ -1979,6 +2126,7 @@
           ...expense,
           debtorMemberIds: [...new Set([...expense.debtorMemberIds, id])],
         }));
+        state.completedAt = null;
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
@@ -1998,6 +2146,7 @@
         }
 
         state.expenses = state.expenses.filter((expense) => expense.id !== id);
+        state.completedAt = null;
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
@@ -2025,6 +2174,7 @@
             debtorMemberIds: expense.debtorMemberIds.filter((memberId) => memberId !== id),
           }))
           .filter((expense) => expense.debtorMemberIds.length > 0);
+        state.completedAt = null;
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
@@ -2184,9 +2334,61 @@
         showToast("グループに参加しました");
       }
 
-      async function archiveCurrentGroup() {
+      async function saveGroupName(formData) {
+        if (!state.activeGroupId) return "";
+
+        const groupName = String(formData.get("name") || "").trim();
+        if (!groupName) return "グループ名を入力してください";
+        if (groupName.length > 40) return "グループ名が長すぎます";
+
+        if (useRemote()) {
+          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ name: groupName }),
+          });
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          closeEditGroupSheet();
+          await refreshSettlement();
+          showToast("グループ名を保存しました");
+          return "";
+        }
+
+        state.groupName = groupName;
+        saveState({ touch: true });
+        closeEditGroupSheet();
+        render();
+        showToast("グループ名を保存しました");
+        return "";
+      }
+
+      async function toggleCurrentGroupCompleted() {
+        if (!state.activeGroupId || !state.canManage) return;
+        const completed = !isCurrentGroupCompleted();
+
+        if (useRemote()) {
+          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ completed }),
+          });
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          await refreshSettlement();
+          showToast(completed ? "グループを完了にしました" : "完了を解除しました");
+          return;
+        }
+
+        state.completedAt = completed ? new Date().toISOString() : null;
+        saveState({ touch: true });
+        render();
+        showToast(completed ? "グループを完了にしました" : "完了を解除しました");
+      }
+
+      async function deleteCurrentGroup() {
         if (!state.activeGroupId) return;
-        if (!confirm(`${state.groupName}をアーカイブしますか？`)) return;
+        if (!state.canManage) {
+          showToast("グループの削除は作成者だけが実行できます");
+          return;
+        }
+        if (!confirm(`${state.groupName}を削除しますか？\nこの操作は元に戻せません。`)) return;
 
         if (useRemote()) {
           await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, { method: "DELETE" });
@@ -2202,7 +2404,7 @@
             render();
           }
           await refreshSettlement();
-          showToast("グループをアーカイブしました");
+          showToast("グループを削除しました");
           return;
         }
 
@@ -2213,8 +2415,9 @@
           state.groupName = nextGroup.groupName;
           state.inviteToken = nextGroup.inviteToken || "";
           state.canManage = nextGroup.canManage !== false;
+          state.completedAt = nextGroup.completedAt || null;
           state.members = structuredClone(nextGroup.members);
-          state.expenses = structuredClone(nextGroup.expenses);
+          state.expenses = normalizeExpenses(structuredClone(nextGroup.expenses), nextGroup.updatedAt);
           state.settlementChecks = nextGroup.settlementChecks ?? {};
         } else {
           state = emptyRemoteState([]);
@@ -2223,7 +2426,7 @@
         saveState();
         render();
         refreshSettlement();
-        showToast("グループをアーカイブしました");
+        showToast("グループを削除しました");
       }
 
       async function toggleSettlement(key) {
@@ -2418,14 +2621,17 @@
 
         const action = event.target.closest("[data-action]")?.dataset.action;
         if (action === "open-group") openGroupSheet();
+        if (action === "edit-group-name") openEditGroupSheet();
         if (action === "join-invite") await joinInvite().catch((error) => showToast(error.message));
-        if (action === "archive-group") await archiveCurrentGroup().catch((error) => showToast(error.message));
+        if (action === "toggle-group-complete") await toggleCurrentGroupCompleted().catch((error) => showToast(error.message));
+        if (action === "delete-group") await deleteCurrentGroup().catch((error) => showToast(error.message));
         if (action === "share") await shareSettlement().catch(() => showToast("共有できませんでした"));
         if (action === "copy-invite") await copyInvite().catch(() => showToast("コピーできませんでした"));
       });
 
-      document.getElementById("open-expense").addEventListener("click", () => openExpenseSheet());
+      elements.openExpense.addEventListener("click", () => openExpenseSheet());
       document.getElementById("open-group").addEventListener("click", openGroupSheet);
+      elements.editGroupNameButton.addEventListener("click", openEditGroupSheet);
       elements.homeButton.addEventListener("click", goHome);
       elements.brandHome.addEventListener("click", goHome);
       document.getElementById("invite-button").addEventListener("click", () => copyInvite().catch(() => showToast("コピーできませんでした")));
@@ -2448,6 +2654,10 @@
         if (event.target === elements.groupSheet) closeGroupSheet();
       });
 
+      elements.editGroupSheet.addEventListener("click", (event) => {
+        if (event.target === elements.editGroupSheet) closeEditGroupSheet();
+      });
+
       elements.form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const error = await saveExpense(new FormData(elements.form)).catch((caughtError) => caughtError.message);
@@ -2458,6 +2668,12 @@
         event.preventDefault();
         const error = await createGroup(new FormData(elements.groupForm)).catch((caughtError) => caughtError.message);
         elements.groupFormError.textContent = error;
+      });
+
+      elements.editGroupForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const error = await saveGroupName(new FormData(elements.editGroupForm)).catch((caughtError) => caughtError.message);
+        elements.editGroupFormError.textContent = error;
       });
 
       elements.membersView.addEventListener("submit", async (event) => {

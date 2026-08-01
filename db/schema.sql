@@ -18,10 +18,13 @@ create table if not exists groups (
   rounding_unit numeric(18, 4) not null default 1,
   invite_token text not null unique,
   allow_member_self_add boolean not null default false,
+  completed_at timestamptz,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table groups add column if not exists completed_at timestamptz;
 
 create table if not exists group_members (
   id text primary key,

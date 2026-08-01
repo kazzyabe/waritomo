@@ -147,6 +147,7 @@ async function fetchGroup(client, groupId, userId) {
     id: group.id,
     groupName: group.name,
     inviteToken: group.invite_token,
+    completedAt: group.completed_at,
     updatedAt: group.updated_at,
     canManage: group.owner_user_id === userId,
     members: membersResult.rows.map((member) => ({
@@ -162,6 +163,7 @@ async function fetchGroup(client, groupId, userId) {
       amount: Number(expense.amount),
       payerMemberId: expense.payer_member_id,
       debtorMemberIds: debtorsByExpense.get(expense.id) ?? [],
+      createdAt: expense.created_at,
     })),
   };
 }
@@ -194,6 +196,7 @@ export async function listGroups(userId) {
         g.id,
         g.name,
         g.owner_user_id,
+        g.completed_at,
         g.created_at,
         g.updated_at,
         (select count(*)::int from group_members gm_count where gm_count.group_id = g.id) as member_count,
@@ -213,7 +216,7 @@ export async function listGroups(userId) {
       left join group_members gm on gm.group_id = g.id
       where g.archived_at is null
         and (g.owner_user_id = $1 or gm.line_user_id = $1)
-      group by g.id, g.name, g.owner_user_id, g.created_at, g.updated_at
+      group by g.id, g.name, g.owner_user_id, g.completed_at, g.created_at, g.updated_at
       order by g.updated_at desc, g.created_at desc
     `,
     [userId],
@@ -225,6 +228,7 @@ export async function listGroups(userId) {
     memberCount: group.member_count,
     expenseCount: group.expense_count,
     totalAmount: Number(group.total_amount),
+    completedAt: group.completed_at,
     updatedAt: group.updated_at,
     canManage: group.owner_user_id === userId,
   }));
@@ -312,7 +316,7 @@ export async function joinGroupByInvite(groupId, user, input) {
         user.id,
         member.id,
       ]);
-      await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+      await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
       return fetchGroup(client, groupId, user.id);
     }
 
@@ -330,7 +334,7 @@ export async function joinGroupByInvite(groupId, user, input) {
         user.id,
         duplicate.id,
       ]);
-      await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+      await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
       return fetchGroup(client, groupId, user.id);
     }
 
@@ -348,7 +352,7 @@ export async function joinGroupByInvite(groupId, user, input) {
       `,
       [createId("mem"), groupId, user.id, cleanMemberName, input.color ?? null],
     );
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, user.id);
   });
 }
@@ -375,7 +379,7 @@ export async function claimMember(groupId, memberId, userId) {
       userId,
       memberId,
     ]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
@@ -394,7 +398,7 @@ export async function unlinkMember(groupId, memberId, userId) {
     }
 
     await client.query("update group_members set line_user_id = null, updated_at = now() where id = $1", [memberId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
 
     if (group.owner_user_id !== userId && member.line_user_id === userId) {
       return { unlinked: true, groupId };
@@ -438,6 +442,47 @@ export async function createGroup(user, input) {
   });
 }
 
+export async function updateGroup(groupId, userId, input) {
+  const patch = input && typeof input === "object" ? input : {};
+
+  return withTransaction(async (client) => {
+    await ensureGroupOwner(client, groupId, userId);
+
+    const updates = [];
+    const values = [];
+
+    if (Object.hasOwn(patch, "name")) {
+      values.push(cleanName(patch.name, "グループ名"));
+      updates.push(`name = $${values.length}`);
+    }
+
+    if (Object.hasOwn(patch, "completed")) {
+      if (patch.completed === true) {
+        updates.push("completed_at = now()");
+      } else if (patch.completed === false) {
+        updates.push("completed_at = null");
+      } else {
+        throw new StoreError(400, "invalid_input", "完了状態が無効です");
+      }
+    }
+
+    if (updates.length === 0) return fetchGroup(client, groupId, userId);
+
+    values.push(groupId);
+    await client.query(
+      `
+        update groups
+        set ${updates.join(", ")},
+            updated_at = now()
+        where id = $${values.length}
+      `,
+      values,
+    );
+
+    return fetchGroup(client, groupId, userId);
+  });
+}
+
 export async function addMember(groupId, userId, input) {
   const name = cleanName(input.name, "メンバー名");
 
@@ -457,7 +502,7 @@ export async function addMember(groupId, userId, input) {
       [createId("mem"), groupId, name, input.color ?? null],
     );
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
@@ -488,7 +533,7 @@ export async function deleteMember(groupId, memberId, userId) {
     await client.query("delete from group_members where id = $1", [memberId]);
 
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
@@ -538,7 +583,7 @@ export async function addExpense(groupId, userId, input) {
     }
 
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
@@ -572,7 +617,7 @@ export async function updateExpense(groupId, expenseId, userId, input) {
       ]);
     }
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
@@ -594,16 +639,16 @@ export async function deleteExpense(groupId, expenseId, userId) {
 
     if (!result.rows[0]) throw new StoreError(404, "expense_not_found", "支払いが見つかりません");
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query("update groups set updated_at = now() where id = $1", [groupId]);
+    await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
 }
 
-export async function archiveGroup(groupId, userId) {
+export async function deleteGroup(groupId, userId) {
   return withTransaction(async (client) => {
     await ensureGroupOwner(client, groupId, userId);
-    await client.query("update groups set archived_at = now(), updated_at = now() where id = $1", [groupId]);
-    return { archived: true };
+    await client.query("delete from groups where id = $1", [groupId]);
+    return { deleted: true };
   });
 }
 

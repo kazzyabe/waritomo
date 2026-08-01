@@ -8,10 +8,10 @@ import {
   StoreError,
   addExpense,
   addMember,
-  archiveGroup,
   claimMember,
   createGroup,
   deleteExpense,
+  deleteGroup,
   deleteMember,
   getInvitePreview,
   getGroup,
@@ -21,6 +21,7 @@ import {
   setSettlementConfirmation,
   unlinkMember,
   updateExpense,
+  updateGroup,
 } from "./group-store.js";
 import { LineAuthError, verifyLineIdToken } from "./line-auth.js";
 import {
@@ -288,8 +289,13 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (parts.length === 3 && request.method === "PATCH") {
+      sendJson(response, 200, await updateGroup(groupId, user.id, await readJson(request)));
+      return;
+    }
+
     if (parts.length === 3 && request.method === "DELETE") {
-      sendJson(response, 200, await archiveGroup(groupId, user.id));
+      sendJson(response, 200, await deleteGroup(groupId, user.id));
       return;
     }
 
