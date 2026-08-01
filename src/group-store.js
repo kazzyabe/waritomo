@@ -647,7 +647,18 @@ export async function deleteExpense(groupId, expenseId, userId) {
 export async function deleteGroup(groupId, userId) {
   return withTransaction(async (client) => {
     await ensureGroupOwner(client, groupId, userId);
+
+    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
+    await client.query(
+      "delete from expense_debtors where expense_id in (select id from expenses where group_id = $1)",
+      [groupId],
+    );
+    await client.query("delete from expenses where group_id = $1", [groupId]);
+    await client.query("delete from group_currencies where group_id = $1", [groupId]);
+    await client.query("delete from audit_events where group_id = $1", [groupId]);
+    await client.query("delete from group_members where group_id = $1", [groupId]);
     await client.query("delete from groups where id = $1", [groupId]);
+
     return { deleted: true };
   });
 }
