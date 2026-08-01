@@ -710,6 +710,13 @@
         font-weight: 850;
       }
 
+      .field-help {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
       input,
       select,
       textarea {
@@ -983,7 +990,8 @@
             </label>
             <label>
               金額
-              <input id="expense-amount" name="amount" inputmode="numeric" pattern="[0-9]*" required value="3200" />
+              <input id="expense-amount" name="amount" inputmode="numeric" placeholder="例: 6655" aria-describedby="expense-amount-help" />
+              <span id="expense-amount-help" class="field-help">数字だけで入力してください。カンマ・円マークは不要です。</span>
             </label>
             <label>
               支払った人
@@ -1965,7 +1973,7 @@
       function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds }) {
         if (useRemote() && !state.activeGroupId) return "先にグループを作成してください";
         if (!title) return "内容を入力してください";
-        if (!Number.isFinite(amount) || amount <= 0) return "金額を入力してください";
+        if (!Number.isFinite(amount) || amount <= 0) return "金額を数字で入力してください（例: 6655）";
         if (!memberById(payerMemberId)) return "支払った人を選んでください";
         if (debtorMemberIds.length === 0) return "割り勘する人を選んでください";
         return "";
