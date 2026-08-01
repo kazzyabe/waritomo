@@ -1,0 +1,2483 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ワリトモ</title>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        background: #eef3f6;
+        color: #162126;
+        --line: #06c755;
+        --line-dark: #07863e;
+        --ink: #162126;
+        --muted: #69777f;
+        --soft: #f5f8f9;
+        --border: #e3eaee;
+        --blue: #2f7de1;
+        --coral: #e66d56;
+        --yellow: #f4bc41;
+        --panel: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      html {
+        min-height: 100%;
+        background: #dfe9ed;
+      }
+
+      body {
+        min-height: 100%;
+        margin: 0;
+        background:
+          linear-gradient(180deg, rgba(6, 199, 85, 0.08), transparent 240px),
+          #eef3f6;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .app-shell {
+        width: min(100%, 480px);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(env(safe-area-inset-top), 10px) 16px 28px;
+        background: #fbfcfc;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 8px 2px 14px;
+      }
+
+      .brand-button {
+        display: inline-block;
+        max-width: 100%;
+        padding: 0;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .brand-button:focus-visible {
+        outline: 3px solid rgba(6, 199, 85, 0.28);
+        outline-offset: 3px;
+      }
+
+      .brand {
+        display: grid;
+        flex: 1 1 auto;
+        gap: 3px;
+        min-width: 0;
+      }
+
+      .brand small {
+        color: var(--line-dark);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 25px;
+        line-height: 1.18;
+      }
+
+      h2 {
+        font-size: 18px;
+        line-height: 1.35;
+      }
+
+      h3 {
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 32px;
+        padding: 0 10px;
+        border: 1px solid #caead7;
+        border-radius: 8px;
+        background: #f0fbf4;
+        color: #087a39;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--line);
+      }
+
+      .home-view,
+      .detail-view {
+        display: grid;
+        gap: 12px;
+      }
+
+      .home-hero {
+        display: grid;
+        gap: 16px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(6, 199, 85, 0.13), rgba(47, 125, 225, 0.08)),
+          #ffffff;
+        box-shadow: 0 10px 28px rgba(34, 52, 61, 0.07);
+      }
+
+      .home-hero-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .home-kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .home-kpi {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 0 10px;
+        border: 1px solid rgba(6, 199, 85, 0.18);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.68);
+        color: #234049;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .home-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        min-height: 74px;
+        padding: 13px 14px;
+        border: 0;
+        border-top: 1px solid #edf2f4;
+        background: #ffffff;
+        color: var(--ink);
+        text-align: left;
+      }
+
+      .home-row:active {
+        background: #f4faf6;
+      }
+
+      .home-row .row-main:last-child {
+        justify-items: end;
+      }
+
+      .home-badges {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .notice {
+        display: grid;
+        gap: 5px;
+        padding: 12px 14px;
+        border: 1px solid #f1dac2;
+        border-radius: 8px;
+        background: #fff8ef;
+        color: #704714;
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .notice strong {
+        color: #573508;
+      }
+
+      .inline-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .claim-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .claim-card {
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 8px 10px;
+        border: 1px solid #dfe8ec;
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .claim-card input {
+        width: 18px;
+        min-height: 18px;
+        accent-color: var(--line);
+      }
+
+      .group-panel,
+      .section,
+      .sheet-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 10px 28px rgba(34, 52, 61, 0.07);
+      }
+
+      .group-panel {
+        display: grid;
+        gap: 18px;
+        padding: 16px;
+      }
+
+      .group-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .group-title {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+      }
+
+      .head-actions {
+        display: flex;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+
+      .group-picker {
+        width: min(100%, 230px);
+        min-height: 36px;
+        margin-top: 4px;
+        padding: 0 10px;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .caption {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .amount-large {
+        color: var(--ink);
+        font-size: clamp(31px, 11vw, 45px);
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      .icon {
+        width: 19px;
+        height: 19px;
+        stroke: currentColor;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .member-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+      }
+
+      .avatar {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 900;
+        box-shadow: 0 4px 12px rgba(22, 33, 38, 0.13);
+      }
+
+      .avatar.small {
+        width: 28px;
+        height: 28px;
+        font-size: 11px;
+      }
+
+      .member-count {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .metric {
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid #e7edf1;
+        border-radius: 8px;
+        background: var(--soft);
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 17px;
+        line-height: 1.25;
+        word-break: keep-all;
+      }
+
+      .metric.positive strong {
+        color: var(--blue);
+      }
+
+      .metric.negative strong {
+        color: var(--coral);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 46px;
+        gap: 10px;
+        margin: 12px 0 14px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 48px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--line);
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 900;
+        text-decoration: none;
+      }
+
+      .button.secondary {
+        border: 1px solid #cdebd8;
+        background: #eefaf2;
+        color: var(--line-dark);
+      }
+
+      .button.subtle {
+        border: 1px solid var(--border);
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      .button.danger {
+        border: 1px solid #f3d5ce;
+        background: #fff3f0;
+        color: #c84932;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #ecf1f3;
+      }
+
+      .tab {
+        min-height: 38px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .tab.active {
+        background: #ffffff;
+        color: var(--ink);
+        box-shadow: 0 3px 10px rgba(34, 52, 61, 0.08);
+      }
+
+      .view {
+        display: grid;
+        gap: 12px;
+        padding-top: 14px;
+      }
+
+      .section {
+        overflow: hidden;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 15px 14px 10px;
+      }
+
+      .section-body {
+        display: grid;
+        gap: 0;
+      }
+
+      .expense-row,
+      .settlement-row,
+      .member-row,
+      .balance-row {
+        display: grid;
+        align-items: center;
+        gap: 12px;
+        min-height: 66px;
+        padding: 12px 14px;
+        border-top: 1px solid #edf2f4;
+      }
+
+      .expense-row {
+        grid-template-columns: 36px 1fr auto;
+      }
+
+      .settlement-row {
+        grid-template-columns: 1fr auto;
+      }
+
+      .settlement-row.with-check {
+        grid-template-columns: 34px 1fr auto;
+      }
+
+      .settlement-row.confirmed {
+        background: #f5faf7;
+      }
+
+      .member-row {
+        grid-template-columns: 34px 1fr auto;
+      }
+
+      .balance-row {
+        grid-template-columns: 1fr auto;
+      }
+
+      .row-main {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .row-title {
+        overflow: hidden;
+        font-size: 15px;
+        font-weight: 900;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .row-meta {
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .row-amount {
+        color: var(--ink);
+        font-size: 15px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        background: #eef5fb;
+        color: #2f6cb9;
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+      }
+
+      .empty-state {
+        display: grid;
+        gap: 8px;
+        padding: 28px 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .empty-state strong {
+        color: var(--ink);
+      }
+
+      .mini-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .mini-action.danger {
+        color: #bf4b36;
+      }
+
+      .icon-check {
+        display: inline-grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid #dce7df;
+        border-radius: 8px;
+        background: #ffffff;
+        color: transparent;
+      }
+
+      .icon-check.checked {
+        border-color: #b8e8c9;
+        background: #eaf9ef;
+        color: var(--line-dark);
+      }
+
+      .share-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px 14px 14px;
+        border-top: 1px solid #edf2f4;
+      }
+
+      .field-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid #d9e3e8;
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        padding: 0 12px;
+        font-size: 15px;
+        outline: none;
+      }
+
+      textarea {
+        min-height: 92px;
+        padding: 12px;
+        line-height: 1.5;
+        resize: vertical;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--line);
+        box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.13);
+      }
+
+      .checkbox-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .check-card {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 8px 10px;
+        border: 1px solid #dfe8ec;
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .check-card input {
+        width: 18px;
+        min-height: 18px;
+        accent-color: var(--line);
+      }
+
+      .sheet {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        align-items: end;
+        padding: 16px;
+        background: rgba(19, 31, 37, 0.4);
+      }
+
+      .sheet-panel {
+        width: min(100%, 448px);
+        max-height: min(86vh, 720px);
+        margin: 0 auto;
+        overflow: auto;
+      }
+
+      .sheet-head {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        background: #ffffff;
+      }
+
+      .sheet-body {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+      }
+
+      .error-text {
+        min-height: 18px;
+        color: #c84932;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .toast {
+        position: fixed;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom));
+        left: 16px;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        min-height: 44px;
+        max-width: 448px;
+        margin: 0 auto;
+        padding: 10px 14px;
+        border-radius: 8px;
+        background: #162126;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 850;
+        box-shadow: 0 16px 36px rgba(22, 33, 38, 0.28);
+      }
+
+      @media (max-width: 360px) {
+        .app-shell {
+          padding-right: 12px;
+          padding-left: 12px;
+        }
+
+        .summary-grid,
+        .share-bar,
+        .checkbox-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .amount-large {
+          font-size: 34px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <button id="home-button" class="icon-button" type="button" aria-label="ホーム" hidden>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m3 10 9-7 9 7" />
+            <path d="M5 10v10h14V10" />
+            <path d="M9 20v-6h6v6" />
+          </svg>
+        </button>
+        <div class="brand">
+          <small>LINE MINI APP</small>
+          <h1><button id="brand-home" class="brand-button" type="button" aria-label="ホームに戻る">ワリトモ</button></h1>
+        </div>
+        <div class="top-actions">
+          <div class="status-chip" aria-live="polite">
+            <span class="status-dot"></span>
+            <span id="connection-status">起動中</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="home-view" class="home-view"></section>
+
+      <section id="detail-view" class="detail-view" hidden>
+        <section class="group-panel" aria-labelledby="group-name">
+          <div class="group-head">
+            <div class="group-title">
+              <span class="caption">現在のグループ</span>
+              <h2 id="group-name">週末キャンプ</h2>
+              <select id="group-picker" class="group-picker" aria-label="グループ切替"></select>
+            </div>
+            <div class="head-actions">
+              <button id="open-group" class="icon-button" type="button" aria-label="グループ作成">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <button id="invite-button" class="icon-button" type="button" aria-label="招待リンク">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+                  <path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <span class="caption">合計</span>
+            <div id="total-amount" class="amount-large">¥0</div>
+          </div>
+
+          <div class="member-strip" id="member-strip" aria-label="メンバー"></div>
+
+          <div class="summary-grid">
+            <div id="my-balance-metric" class="metric">
+              <span class="caption">あなたの差額</span>
+              <strong id="my-balance">¥0</strong>
+            </div>
+            <div class="metric">
+              <span class="caption">清算</span>
+              <strong id="settlement-count">0件</strong>
+            </div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button id="open-expense" class="button" type="button">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            支払いを追加
+          </button>
+          <button id="share-button" class="button secondary" type="button" aria-label="LINEで共有">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+              <path d="M16 6l-4-4-4 4" />
+              <path d="M12 2v13" />
+            </svg>
+          </button>
+        </div>
+
+        <nav class="tabs" aria-label="表示切替">
+          <button class="tab active" type="button" data-tab="expenses">支払い</button>
+          <button class="tab" type="button" data-tab="settlement">清算</button>
+          <button class="tab" type="button" data-tab="members">メンバー</button>
+        </nav>
+
+        <section id="expenses-view" class="view"></section>
+        <section id="settlement-view" class="view" hidden></section>
+        <section id="members-view" class="view" hidden></section>
+      </section>
+    </main>
+
+    <div id="expense-sheet" class="sheet" hidden>
+      <form id="expense-form" class="sheet-panel" autocomplete="off">
+        <div class="sheet-head">
+          <h2 id="expense-sheet-title">支払いを追加</h2>
+          <button class="icon-button" type="button" data-close-sheet aria-label="閉じる">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <div class="field-grid">
+            <label>
+              内容
+              <input id="expense-title" name="title" maxlength="28" required value="スーパー" />
+            </label>
+            <label>
+              金額
+              <input id="expense-amount" name="amount" inputmode="numeric" pattern="[0-9]*" required value="3200" />
+            </label>
+            <label>
+              支払った人
+              <select id="expense-payer" name="payer"></select>
+            </label>
+          </div>
+          <div>
+            <div class="caption">割り勘する人</div>
+            <div id="debtor-options" class="checkbox-grid"></div>
+          </div>
+          <div id="form-error" class="error-text" aria-live="polite"></div>
+          <button id="expense-submit" class="button" type="submit">追加する</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="group-sheet" class="sheet" hidden>
+      <form id="group-form" class="sheet-panel" autocomplete="off">
+        <div class="sheet-head">
+          <h2>グループを作る</h2>
+          <button class="icon-button" type="button" data-close-sheet aria-label="閉じる">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <label>
+            グループ名
+            <input id="new-group-name" name="name" maxlength="28" required placeholder="例: 沖縄旅行" />
+          </label>
+          <label>
+            初期メンバー
+            <textarea id="new-group-members" name="members" required placeholder="かず、まい、ゆう"></textarea>
+          </label>
+          <p class="row-meta">メンバーはあとから追加できます。2人以上で作成してください。</p>
+          <div id="group-form-error" class="error-text" aria-live="polite"></div>
+          <button class="button" type="submit">作成する</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <script>
+      const STORAGE_KEY = "waritomo-demo-state-v1";
+      const colors = ["#06c755", "#2f7de1", "#e66d56", "#9b7a2e", "#6c63c7", "#169c96"];
+
+      const initialState = {
+        activeGroupId: "g-demo",
+        groupName: "週末キャンプ",
+        activeTab: "expenses",
+        inviteToken: "",
+        canManage: true,
+        settlementChecks: {},
+        groups: [],
+        members: [
+          { id: "kaz", name: "かず", color: "#06c755" },
+          { id: "mai", name: "まい", color: "#2f7de1" },
+          { id: "yu", name: "ゆう", color: "#e66d56" },
+          { id: "ren", name: "れん", color: "#9b7a2e" },
+        ],
+        expenses: [
+          { id: "e1", title: "スーパー", amount: 12840, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
+          { id: "e2", title: "高速代", amount: 7800, payerMemberId: "yu", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
+          { id: "e3", title: "温泉", amount: 4500, payerMemberId: "mai", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
+          { id: "e4", title: "朝ごはん", amount: 3600, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu"] },
+          { id: "e5", title: "ガソリン", amount: 9600, payerMemberId: "ren", debtorMemberIds: ["kaz", "mai", "yu", "ren"] },
+        ],
+      };
+
+      let state = loadState();
+      let settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
+      let config = { line: { liffId: "", miniAppBaseUrl: "" }, storage: { mode: "browser" } };
+      let remoteReady = false;
+      let currentUserName = "あなた";
+      let currentUserAuthenticated = false;
+      let settlementRequestId = 0;
+      let toastTimer;
+      let editingExpenseId = "";
+      let cloudStorageNotice = "";
+      let inviteContext = parseInviteRoute();
+      let invitePreview = null;
+      let lineContext = null;
+      let canSendToCurrentChat = false;
+
+      const yenFormatter = new Intl.NumberFormat("ja-JP", {
+        style: "currency",
+        currency: "JPY",
+        maximumFractionDigits: 0,
+      });
+      const updatedAtFormatter = new Intl.DateTimeFormat("ja-JP", {
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const elements = {
+        homeButton: document.getElementById("home-button"),
+        homeView: document.getElementById("home-view"),
+        detailView: document.getElementById("detail-view"),
+        connectionStatus: document.getElementById("connection-status"),
+        groupName: document.getElementById("group-name"),
+        totalAmount: document.getElementById("total-amount"),
+        memberStrip: document.getElementById("member-strip"),
+        myBalance: document.getElementById("my-balance"),
+        myBalanceMetric: document.getElementById("my-balance-metric"),
+        settlementCount: document.getElementById("settlement-count"),
+        expensesView: document.getElementById("expenses-view"),
+        settlementView: document.getElementById("settlement-view"),
+        membersView: document.getElementById("members-view"),
+        groupPicker: document.getElementById("group-picker"),
+        sheet: document.getElementById("expense-sheet"),
+        groupSheet: document.getElementById("group-sheet"),
+        form: document.getElementById("expense-form"),
+        groupForm: document.getElementById("group-form"),
+        expenseSheetTitle: document.getElementById("expense-sheet-title"),
+        expenseSubmit: document.getElementById("expense-submit"),
+        title: document.getElementById("expense-title"),
+        amount: document.getElementById("expense-amount"),
+        payer: document.getElementById("expense-payer"),
+        debtorOptions: document.getElementById("debtor-options"),
+        formError: document.getElementById("form-error"),
+        newGroupName: document.getElementById("new-group-name"),
+        newGroupMembers: document.getElementById("new-group-members"),
+        groupFormError: document.getElementById("group-form-error"),
+        brandHome: document.getElementById("brand-home"),
+        toast: document.getElementById("toast"),
+      };
+      let currentScreen = "home";
+
+      function loadState() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          const normalized = normalizeState(saved);
+          if (normalized) return normalized;
+        } catch {
+          return normalizeState(structuredClone(initialState));
+        }
+        return normalizeState(structuredClone(initialState));
+      }
+
+      function saveState(options = {}) {
+        syncActiveGroup(options);
+        if (!remoteReady) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function goHome() {
+        syncActiveGroup();
+        currentScreen = "home";
+        render();
+      }
+
+      function normalizeMemberLinks(members, options = {}) {
+        const shouldDefaultFirst = options.defaultFirst !== false;
+        const hasCurrentMember = members.some((member) => member.linkedToCurrentUser);
+        return members.map((member, index) => {
+          const linkedToCurrentUser = Boolean(member.linkedToCurrentUser || (shouldDefaultFirst && !hasCurrentMember && index === 0));
+          return {
+            ...member,
+            linkedToCurrentUser,
+            available: linkedToCurrentUser ? false : member.available !== false,
+          };
+        });
+      }
+
+      function normalizeState(nextState) {
+        if (Array.isArray(nextState?.groups) && nextState.groups.length === 0 && !nextState.activeGroupId) {
+          return emptyRemoteState([]);
+        }
+        if (!nextState?.members?.length || !Array.isArray(nextState.expenses)) return null;
+
+        const normalized = {
+          ...nextState,
+          activeGroupId: nextState.activeGroupId || "g-demo",
+          activeTab: nextState.activeTab || "expenses",
+          inviteToken: nextState.inviteToken || "",
+          canManage: nextState.canManage !== false,
+          settlementChecks: nextState.settlementChecks ?? {},
+          groups: Array.isArray(nextState.groups) ? nextState.groups : [],
+        };
+
+        if (normalized.groups.length === 0) {
+          normalized.groups = [snapshotCurrentGroup(normalized, normalized.activeGroupId)];
+        }
+
+        normalized.groups = normalized.groups.map((group) => normalizeGroupSummary(group, group));
+        const activeGroup = normalized.groups.find((group) => group.id === normalized.activeGroupId) ?? normalized.groups[0];
+        normalized.activeGroupId = activeGroup.id;
+        normalized.groupName = activeGroup.groupName;
+        normalized.inviteToken = activeGroup.inviteToken || normalized.inviteToken || "";
+        normalized.canManage = activeGroup.canManage !== false;
+        normalized.settlementChecks = activeGroup.settlementChecks ?? normalized.settlementChecks ?? {};
+        normalized.members = normalizeMemberLinks(structuredClone(activeGroup.members ?? []));
+        normalized.expenses = structuredClone(activeGroup.expenses ?? []);
+        return normalized;
+      }
+
+      function snapshotCurrentGroup(source = state, id = source.activeGroupId, options = {}) {
+        const existing = source.groups?.find((group) => group.id === id);
+        const members = structuredClone(source.members ?? []);
+        const expenses = structuredClone(source.expenses ?? []);
+        return normalizeGroupSummary(
+          {
+            id,
+            groupName: source.groupName,
+            inviteToken: source.inviteToken,
+            canManage: source.canManage,
+            settlementChecks: source.settlementChecks,
+            members,
+            expenses,
+          },
+          existing,
+          options,
+        );
+      }
+
+      function normalizeGroupSummary(group, fallback = {}, options = {}) {
+        const members = group.members ?? fallback.members ?? [];
+        const expenses = group.expenses ?? fallback.expenses ?? [];
+        const totalAmount = expenses.length
+          ? expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0)
+          : Number(group.totalAmount ?? fallback.totalAmount ?? 0);
+        const updatedAt = options.touch
+          ? new Date().toISOString()
+          : group.updatedAt || fallback.updatedAt || group.createdAt || fallback.createdAt || new Date().toISOString();
+
+        return {
+          id: group.id || fallback.id,
+          groupName: group.groupName || group.name || fallback.groupName || "名称未設定",
+          memberCount: Number(group.memberCount ?? fallback.memberCount ?? members.length ?? 0),
+          expenseCount: Number(group.expenseCount ?? fallback.expenseCount ?? expenses.length ?? 0),
+          totalAmount,
+          updatedAt,
+          inviteToken: group.inviteToken || fallback.inviteToken || "",
+          canManage: group.canManage ?? fallback.canManage ?? true,
+          settlementChecks: group.settlementChecks ?? fallback.settlementChecks ?? {},
+          ...(group.members ? { members: structuredClone(group.members) } : {}),
+          ...(group.expenses ? { expenses: structuredClone(group.expenses) } : {}),
+        };
+      }
+
+      function syncActiveGroup(options = {}) {
+        if (!state.activeGroupId) return;
+        const index = state.groups.findIndex((group) => group.id === state.activeGroupId);
+        const snapshot = snapshotCurrentGroup(state, state.activeGroupId, options);
+        if (index >= 0) state.groups[index] = snapshot;
+        else state.groups.unshift(snapshot);
+        state.groups = sortGroupSummaries(state.groups);
+      }
+
+      function emptyRemoteState(groups = []) {
+        return {
+          activeGroupId: "",
+          groupName: "グループ未作成",
+          activeTab: "expenses",
+          inviteToken: "",
+          canManage: false,
+          settlementChecks: {},
+          groups,
+          members: [],
+          expenses: [],
+        };
+      }
+
+      function useRemote() {
+        return remoteReady && config.storage?.mode === "database";
+      }
+
+      function yen(value) {
+        return yenFormatter.format(Math.round(Number(value) || 0));
+      }
+
+      function parseInviteRoute() {
+        const match = location.pathname.match(/^\/groups\/([^/]+)\/invite\/?$/);
+        if (!match) return null;
+        return {
+          groupId: decodeURIComponent(match[1]),
+          token: new URLSearchParams(location.search).get("token") || "",
+        };
+      }
+
+      function groupTimestamp(group) {
+        const time = Date.parse(group?.updatedAt || group?.createdAt || "");
+        return Number.isFinite(time) ? time : 0;
+      }
+
+      function sortGroupSummaries(groups) {
+        return [...(groups ?? [])]
+          .map((group, index) => ({ group, index }))
+          .sort((a, b) => groupTimestamp(b.group) - groupTimestamp(a.group) || a.index - b.index)
+          .map(({ group }) => group);
+      }
+
+      function formatUpdatedAt(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "最近";
+        return updatedAtFormatter.format(date);
+      }
+
+      function settlementItemKey(item) {
+        return `${item.fromMemberId}:${item.toMemberId}:${Math.round(Number(item.amount) || 0)}`;
+      }
+
+      function confirmationKeys() {
+        return new Set((settlement.confirmations ?? []).map(settlementItemKey));
+      }
+
+      async function apiJson(path, options = {}) {
+        const response = await fetch(path, {
+          ...options,
+          headers: {
+            "content-type": "application/json",
+            ...(options.headers ?? {}),
+          },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || data.error || "API request failed");
+        }
+        return data;
+      }
+
+      async function checkStorageStatus() {
+        if (config.storage?.mode !== "database") return;
+        const status = await apiJson("/api/storage/status").catch(() => ({ available: false }));
+        cloudStorageNotice = status.available ? "" : "クラウド保存は停止中です";
+        render();
+      }
+
+      async function loadInvitePreview() {
+        if (!inviteContext || config.storage?.mode !== "database") return;
+        invitePreview = await apiJson(
+          `/api/invites/${encodeURIComponent(inviteContext.groupId)}?token=${encodeURIComponent(inviteContext.token)}`,
+        );
+        render();
+      }
+
+      function normalizeRemoteGroup(group, groupSummaries = state.groups, options = {}) {
+        const members = normalizeMemberLinks(
+          (group.members ?? []).map((member, index) => ({
+            ...member,
+            color: member.color || colors[index % colors.length],
+          })),
+          { defaultFirst: false },
+        );
+
+        return {
+          activeGroupId: group.id,
+          groupName: group.groupName,
+          inviteToken: group.inviteToken || "",
+          canManage: group.canManage !== false,
+          settlementChecks: state.settlementChecks ?? {},
+          activeTab: state.activeTab || "expenses",
+          groups: upsertGroupSummary(groupSummaries, group, options),
+          members,
+          expenses: group.expenses ?? [],
+        };
+      }
+
+      function upsertGroupSummary(groups, group, options = {}) {
+        const existing = (groups ?? []).find((item) => item.id === group.id);
+        const summary = normalizeGroupSummary(group, existing, options);
+        const rest = (groups ?? []).filter((item) => item.id !== group.id);
+        return sortGroupSummaries([summary, ...rest]);
+      }
+
+      function applyRemoteGroup(group, groupSummaries = state.groups, options = {}) {
+        state = normalizeRemoteGroup(group, groupSummaries, options);
+        if (options.openDetail ?? currentScreen === "detail") currentScreen = "detail";
+        render();
+      }
+
+      async function loadRemoteState() {
+        if (config.storage?.mode !== "database") return false;
+
+        const data = await apiJson("/api/groups");
+        remoteReady = true;
+        cloudStorageNotice = "";
+
+        if (!data.groups?.length) {
+          state = emptyRemoteState([]);
+          currentScreen = "home";
+          settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
+          render();
+          showToast("クラウド保存に接続しました");
+          return true;
+        }
+
+        const selectedGroup = data.groups.find((group) => group.id === state.activeGroupId) ?? data.groups[0];
+        const group = await apiJson(`/api/groups/${encodeURIComponent(selectedGroup.id)}`);
+        applyRemoteGroup(group, data.groups, { openDetail: false });
+        await refreshSettlement();
+        showToast("クラウド保存に接続しました");
+        return true;
+      }
+
+      function memberById(id) {
+        return state.members.find((member) => member.id === id);
+      }
+
+      function initials(name) {
+        return [...name.trim()].slice(0, 2).join("") || "?";
+      }
+
+      function totalExpenses() {
+        return state.expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+      }
+
+      function settlementInput() {
+        return {
+          baseCurrencyCode: "JPY",
+          roundingUnit: "1",
+          members: state.members.map((member) => ({ id: member.id })),
+          expenses: state.expenses.map((expense) => ({
+            payerMemberId: expense.payerMemberId,
+            title: expense.title,
+            splitMode: "equal",
+            amount: String(expense.amount),
+            debtors: expense.debtorMemberIds.map((memberId) => ({ memberId })),
+          })),
+        };
+      }
+
+      async function refreshSettlement() {
+        if (state.members.length < 2) {
+          settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
+          render();
+          return;
+        }
+
+        const requestId = ++settlementRequestId;
+        try {
+          const data = useRemote()
+            ? await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement`)
+            : await apiJson("/api/settlement/preview", {
+                method: "POST",
+                body: JSON.stringify(settlementInput()),
+              });
+          if (requestId === settlementRequestId) {
+            settlement = {
+              ...data,
+              confirmations: useRemote()
+                ? data.confirmations ?? []
+                : Object.values(state.settlementChecks ?? {}).filter(Boolean),
+            };
+            render();
+          }
+        } catch {
+          if (requestId === settlementRequestId) showToast("清算を更新できませんでした");
+        }
+      }
+
+      function render() {
+        if (!state.activeGroupId) currentScreen = "home";
+        elements.homeView.hidden = currentScreen !== "home";
+        elements.detailView.hidden = currentScreen !== "detail";
+        elements.homeButton.hidden = currentScreen === "home";
+        renderHomeView();
+        elements.groupName.textContent = state.groupName;
+        elements.totalAmount.textContent = yen(totalExpenses());
+        elements.settlementCount.textContent = `${settlement.items?.length ?? 0}件`;
+        renderGroupPicker();
+        renderMembersStrip();
+        renderMyBalance();
+        renderTabs();
+        renderExpensesView();
+        renderSettlementView();
+        renderMembersView();
+        renderExpenseFormOptions();
+      }
+
+      function renderHomeView() {
+        const groups = sortGroupSummaries(state.groups);
+        const totalAmountAcrossGroups = groups.reduce((sum, group) => sum + Number(group.totalAmount || 0), 0);
+        const totalExpenseCount = groups.reduce((sum, group) => sum + Number(group.expenseCount || 0), 0);
+        const notice = cloudStorageNotice
+          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>表示中の内容はこの端末の一時データです。</span></div>`
+          : "";
+        const invitePanel = inviteContext ? renderInvitePanel() : "";
+        const rows = groups
+          .map(
+            (group) => `
+              <button class="home-row" type="button" data-open-group="${escapeHtml(group.id)}">
+                <div class="row-main">
+                  <div class="row-title">${escapeHtml(group.groupName)}</div>
+                  <div class="row-meta">更新 ${escapeHtml(formatUpdatedAt(group.updatedAt))}</div>
+                </div>
+                <div class="row-main">
+                  <div class="row-amount">${yen(group.totalAmount)}</div>
+                  <div class="home-badges">
+                    <span class="tag">${Number(group.memberCount || 0)}人</span>
+                    <span class="tag">${Number(group.expenseCount || 0)}件</span>
+                  </div>
+                </div>
+              </button>`,
+          )
+          .join("");
+
+        elements.homeView.innerHTML = `
+          ${notice}
+          ${invitePanel}
+          <section class="home-hero" aria-labelledby="home-title">
+            <div class="home-hero-head">
+              <div class="group-title">
+                <span class="caption">ホーム</span>
+                <h2 id="home-title">最近のグループ</h2>
+              </div>
+              <button class="icon-button" type="button" data-action="open-group" aria-label="グループ作成">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+            </div>
+            <div class="home-kpis" aria-label="グループ概要">
+              <span class="home-kpi">${groups.length}グループ</span>
+              <span class="home-kpi">${totalExpenseCount}支払い</span>
+              <span class="home-kpi">${yen(totalAmountAcrossGroups)}</span>
+            </div>
+          </section>
+          <section class="section">
+            <div class="section-head">
+              <h2>グループ</h2>
+              <button class="mini-action" type="button" data-action="open-group">作成</button>
+            </div>
+            <div class="section-body">
+              ${
+                rows ||
+                `<div class="empty-state">
+                  <strong>グループはまだありません</strong>
+                  <span>最初のグループを作成できます。</span>
+                  <button class="button" type="button" data-action="open-group">グループを作る</button>
+                </div>`
+              }
+            </div>
+          </section>`;
+      }
+
+      function renderInvitePanel() {
+        const members = invitePreview?.members ?? [];
+        const availableMembers = members.filter((member) => member.available);
+        const memberOptions = availableMembers
+          .map(
+            (member, index) => `
+              <label class="claim-card">
+                <input type="radio" name="invite-member" value="${escapeHtml(member.id)}" ${index === 0 ? "checked" : ""} />
+                <span>${escapeHtml(member.name)}として参加</span>
+              </label>`,
+          )
+          .join("");
+        const checkedNew = availableMembers.length === 0 ? "checked" : "";
+
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div class="group-title">
+                <span class="caption">招待</span>
+                <h2>${escapeHtml(invitePreview?.groupName ?? "グループに参加")}</h2>
+              </div>
+              <span class="tag">${members.length || "-"}人</span>
+            </div>
+            <div class="sheet-body">
+              <div class="claim-grid">
+                ${memberOptions}
+                <label class="claim-card">
+                  <input type="radio" name="invite-member" value="new" ${checkedNew} />
+                  <span>新しい名前で参加</span>
+                </label>
+              </div>
+              <label>
+                表示名
+                <input id="invite-name" maxlength="16" placeholder="例: かず" />
+              </label>
+              <button class="button" type="button" data-action="join-invite">参加する</button>
+            </div>
+          </section>`;
+      }
+
+      function renderGroupPicker() {
+        elements.groupPicker.innerHTML = sortGroupSummaries(state.groups)
+          .map((group) => `<option value="${group.id}">${escapeHtml(group.groupName)}</option>`)
+          .join("");
+        elements.groupPicker.value = state.activeGroupId;
+      }
+
+      function renderMembersStrip() {
+        const avatars = state.members
+          .map(
+            (member) =>
+              `<span class="avatar" style="background:${member.color}" title="${escapeHtml(member.name)}">${escapeHtml(initials(member.name))}</span>`,
+          )
+          .join("");
+        elements.memberStrip.innerHTML = `${avatars}<span class="member-count">${state.members.length}人</span>`;
+      }
+
+      function renderMyBalance() {
+        const me = state.members[0];
+        const balance = Number(settlement.balances?.[me?.id] ?? 0);
+        elements.myBalanceMetric.classList.toggle("positive", balance > 0);
+        elements.myBalanceMetric.classList.toggle("negative", balance < 0);
+        elements.myBalance.textContent = balance === 0 ? "¥0" : `${balance > 0 ? "受取 " : "支払 "}${yen(Math.abs(balance))}`;
+      }
+
+      function renderTabs() {
+        document.querySelectorAll(".tab").forEach((button) => {
+          button.classList.toggle("active", button.dataset.tab === state.activeTab);
+        });
+        elements.expensesView.hidden = state.activeTab !== "expenses";
+        elements.settlementView.hidden = state.activeTab !== "settlement";
+        elements.membersView.hidden = state.activeTab !== "members";
+      }
+
+      function renderExpensesView() {
+        const rows = state.expenses
+          .map((expense) => {
+            const payer = memberById(expense.payerMemberId);
+            const participantLabel =
+              expense.debtorMemberIds.length === state.members.length
+                ? "全員"
+                : expense.debtorMemberIds.map((id) => memberById(id)?.name).filter(Boolean).join("・");
+            return `
+              <div class="expense-row">
+                <span class="avatar small" style="background:${payer?.color ?? colors[0]}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
+                <div class="row-main">
+                  <div class="row-title">${escapeHtml(expense.title)}</div>
+                  <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い / ${escapeHtml(participantLabel)}</div>
+                </div>
+                <div class="row-main" style="justify-items:end">
+                  <div class="row-amount">${yen(expense.amount)}</div>
+                  <div class="inline-actions">
+                    <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
+                    <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
+                  </div>
+                </div>
+              </div>`;
+          })
+          .join("");
+
+        elements.expensesView.innerHTML = `
+          <div class="section">
+            <div class="section-head">
+              <h2>最近の支払い</h2>
+              <span class="tag">${state.expenses.length}件</span>
+            </div>
+            <div class="section-body">
+              ${
+                rows ||
+                `<div class="empty-state"><strong>支払いはまだありません</strong><span>最初の支払いを追加できます。</span></div>`
+              }
+            </div>
+          </div>`;
+      }
+
+      function renderSettlementView() {
+        const checkedKeys = confirmationKeys();
+        const itemRows = (settlement.items ?? [])
+          .map((item) => {
+            const from = memberById(item.fromMemberId);
+            const to = memberById(item.toMemberId);
+            const key = settlementItemKey(item);
+            const checked = checkedKeys.has(key);
+            return `
+              <div class="settlement-row with-check ${checked ? "confirmed" : ""}">
+                <button class="icon-check ${checked ? "checked" : ""}" type="button" data-toggle-settlement="${escapeHtml(key)}" aria-label="精算済み切替">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m5 13 4 4L19 7" />
+                  </svg>
+                </button>
+                <div class="row-main">
+                  <div class="row-title">${escapeHtml(from?.name ?? "不明")} → ${escapeHtml(to?.name ?? "不明")}</div>
+                  <div class="row-meta">${checked ? "精算済み" : "送金で清算"}</div>
+                </div>
+                <div class="row-main" style="justify-items:end">
+                  <div class="row-amount">${yen(item.amount)}</div>
+                  <button class="mini-action" type="button" data-request-payment="${escapeHtml(key)}">請求</button>
+                </div>
+              </div>`;
+          })
+          .join("");
+
+        const balanceRows = state.members
+          .map((member) => {
+            const balance = Number(settlement.balances?.[member.id] ?? 0);
+            const label = balance > 0 ? "受け取り" : balance < 0 ? "支払い" : "差額なし";
+            return `
+              <div class="balance-row">
+                <div class="row-main">
+                  <div class="row-title">${escapeHtml(member.name)}</div>
+                  <div class="row-meta">${label}</div>
+                </div>
+                <div class="row-amount">${yen(Math.abs(balance))}</div>
+              </div>`;
+          })
+          .join("");
+
+        elements.settlementView.innerHTML = `
+          <div class="section">
+            <div class="section-head">
+              <h2>清算は${settlement.items?.length ?? 0}件で完了</h2>
+              <span class="tag">JPY</span>
+            </div>
+            <div class="section-body">
+              ${
+                itemRows ||
+                `<div class="empty-state"><strong>清算は不要です</strong><span>差額がない状態です。</span></div>`
+              }
+            </div>
+            <div class="share-bar">
+              <button class="button secondary" type="button" data-action="share">LINEで共有</button>
+              <button class="button subtle" type="button" data-action="copy-invite">招待リンク</button>
+            </div>
+          </div>
+          <div class="section">
+            <div class="section-head">
+              <h2>メンバー別差額</h2>
+            </div>
+            <div class="section-body">${balanceRows}</div>
+          </div>`;
+      }
+
+      function renderMembersView() {
+        const rows = state.members
+          .map(
+            (member) => {
+              const label = member.linkedToCurrentUser ? currentUserName : member.available === false ? "参加済み" : "未参加";
+              const linkAction = member.linkedToCurrentUser
+                ? `<button class="mini-action" type="button" data-unlink-member="${member.id}">解除</button>`
+                : member.available !== false
+                  ? `<button class="mini-action" type="button" data-claim-member="${member.id}">自分にする</button>`
+                  : `<span class="tag">参加済み</span>`;
+              const deleteAction =
+                state.members.length > 2
+                  ? `<button class="mini-action danger" type="button" data-delete-member="${member.id}">削除</button>`
+                  : "";
+              return `
+                <div class="member-row">
+                  <span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>
+                  <div class="row-main">
+                    <div class="row-title">${escapeHtml(member.name)}</div>
+                    <div class="row-meta">${escapeHtml(label)}</div>
+                  </div>
+                  <div class="inline-actions">
+                    ${linkAction}
+                    ${deleteAction}
+                  </div>
+                </div>`;
+            },
+          )
+          .join("");
+
+        elements.membersView.innerHTML = `
+          <div class="section">
+            <div class="section-head">
+              <h2>メンバー</h2>
+              <span class="tag">${state.members.length}人</span>
+            </div>
+            <div class="section-body">${rows}</div>
+          </div>
+          <form id="member-form" class="section" autocomplete="off">
+            <div class="section-head">
+              <h2>メンバーを追加</h2>
+            </div>
+            <div class="sheet-body">
+              <label>
+                名前
+                <input id="member-name" maxlength="16" required placeholder="例: さき" />
+              </label>
+              <button class="button secondary" type="submit">追加する</button>
+            </div>
+          </form>
+          <div class="section">
+            <div class="section-head">
+              <h2>グループ設定</h2>
+            </div>
+            <div class="sheet-body">
+              <button class="button secondary" type="button" data-action="copy-invite">招待リンク</button>
+              ${
+                state.canManage
+                  ? `<button class="button danger" type="button" data-action="archive-group">アーカイブ</button>`
+                  : `<p class="row-meta">グループのアーカイブは作成者だけが実行できます。</p>`
+              }
+            </div>
+          </div>`;
+      }
+
+      function renderExpenseFormOptions(expense = null) {
+        elements.payer.innerHTML = state.members
+          .map((member) => `<option value="${member.id}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
+          .join("");
+
+        const debtorIds = new Set(expense?.debtorMemberIds ?? state.members.map((member) => member.id));
+        elements.debtorOptions.innerHTML = state.members
+          .map(
+            (member) => `
+              <label class="check-card">
+                <input type="checkbox" name="debtor" value="${member.id}" ${debtorIds.has(member.id) ? "checked" : ""} />
+                <span>${escapeHtml(member.name)}</span>
+              </label>`,
+          )
+          .join("");
+      }
+
+      function openExpenseSheet(expenseId = "") {
+        if (useRemote() && !state.activeGroupId) {
+          showToast("先にグループを作成してください");
+          openGroupSheet();
+          return;
+        }
+        if (state.members.length < 2) {
+          showToast("メンバーを2人以上にしてください");
+          return;
+        }
+        editingExpenseId = expenseId;
+        const expense = expenseId ? state.expenses.find((item) => item.id === expenseId) : null;
+        elements.formError.textContent = "";
+        elements.expenseSheetTitle.textContent = expense ? "支払いを編集" : "支払いを追加";
+        elements.expenseSubmit.textContent = expense ? "保存する" : "追加する";
+        elements.title.value = expense?.title ?? suggestExpenseTitle();
+        elements.amount.value = expense?.amount ?? "";
+        elements.sheet.hidden = false;
+        renderExpenseFormOptions(expense);
+        elements.amount.focus();
+      }
+
+      function openGroupSheet() {
+        elements.groupFormError.textContent = "";
+        elements.newGroupName.value = "";
+        elements.newGroupMembers.value = state.members.length
+          ? state.members.map((member) => member.name).slice(0, 3).join("、")
+          : "";
+        elements.groupSheet.hidden = false;
+        elements.newGroupName.focus();
+      }
+
+      function closeExpenseSheet() {
+        elements.sheet.hidden = true;
+        editingExpenseId = "";
+      }
+
+      function closeGroupSheet() {
+        elements.groupSheet.hidden = true;
+      }
+
+      function closeAllSheets() {
+        closeExpenseSheet();
+        closeGroupSheet();
+      }
+
+      function expensePayloadFromForm(formData) {
+        const title = String(formData.get("title") || "").trim();
+        const amount = Number(String(formData.get("amount") || "").replace(/[^\d]/g, ""));
+        const payerMemberId = String(formData.get("payer") || "");
+        const debtorMemberIds = formData.getAll("debtor").map(String);
+        return { title, amount, payerMemberId, debtorMemberIds };
+      }
+
+      function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds }) {
+        if (useRemote() && !state.activeGroupId) return "先にグループを作成してください";
+        if (!title) return "内容を入力してください";
+        if (!Number.isFinite(amount) || amount <= 0) return "金額を入力してください";
+        if (!memberById(payerMemberId)) return "支払った人を選んでください";
+        if (debtorMemberIds.length === 0) return "割り勘する人を選んでください";
+        return "";
+      }
+
+      async function saveExpense(formData) {
+        const payload = expensePayloadFromForm(formData);
+        const error = validateExpensePayload(payload);
+        if (error) return error;
+
+        if (editingExpenseId) return updateExpense(editingExpenseId, payload);
+        return addExpense(payload);
+      }
+
+      async function addExpense(payload) {
+        const { title, amount, payerMemberId, debtorMemberIds } = payload;
+        if (useRemote()) {
+          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses`, {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          closeExpenseSheet();
+          await refreshSettlement();
+          showToast("支払いを保存しました");
+          return "";
+        }
+
+        state.expenses.unshift({
+          id: `e${Date.now().toString(36)}`,
+          title,
+          amount,
+          payerMemberId,
+          debtorMemberIds,
+        });
+        state.settlementChecks = {};
+        saveState({ touch: true });
+        closeExpenseSheet();
+        refreshSettlement();
+        showToast("支払いを追加しました");
+        return "";
+      }
+
+      async function updateExpense(expenseId, payload) {
+        if (useRemote()) {
+          const group = await apiJson(
+            `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(expenseId)}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify(payload),
+            },
+          );
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          closeExpenseSheet();
+          await refreshSettlement();
+          showToast("支払いを保存しました");
+          return "";
+        }
+
+        state.expenses = state.expenses.map((expense) => (expense.id === expenseId ? { ...expense, ...payload } : expense));
+        state.settlementChecks = {};
+        saveState({ touch: true });
+        closeExpenseSheet();
+        refreshSettlement();
+        showToast("支払いを保存しました");
+        return "";
+      }
+
+      async function switchGroup(groupId, options = {}) {
+        const openDetail = options.openDetail ?? true;
+        if (groupId === state.activeGroupId) {
+          if (openDetail) {
+            currentScreen = "detail";
+            render();
+          }
+          return;
+        }
+
+        if (useRemote()) {
+          const group = await apiJson(`/api/groups/${encodeURIComponent(groupId)}`);
+          applyRemoteGroup(group, state.groups, { openDetail });
+          await refreshSettlement();
+          return;
+        }
+
+        syncActiveGroup();
+
+        const nextGroup = state.groups.find((group) => group.id === groupId);
+        if (!nextGroup) return;
+
+        state.activeGroupId = nextGroup.id;
+        state.groupName = nextGroup.groupName;
+        state.inviteToken = nextGroup.inviteToken || "";
+        state.canManage = nextGroup.canManage !== false;
+        state.settlementChecks = nextGroup.settlementChecks ?? {};
+        state.members = structuredClone(nextGroup.members);
+        state.expenses = structuredClone(nextGroup.expenses);
+        state.activeTab = "expenses";
+        if (openDetail) currentScreen = "detail";
+        saveState();
+        render();
+        refreshSettlement();
+      }
+
+      function parseMemberNames(value) {
+        return [
+          ...new Set(
+            String(value)
+              .split(/[\n,、]+/)
+              .map((name) => name.trim())
+              .filter(Boolean),
+          ),
+        ];
+      }
+
+      async function createGroup(formData) {
+        const groupName = String(formData.get("name") || "").trim();
+        const memberNames = parseMemberNames(formData.get("members"));
+
+        if (!groupName) return "グループ名を入力してください";
+        if (memberNames.length < 2) return "メンバーを2人以上入力してください";
+
+        if (useRemote()) {
+          const group = await apiJson("/api/groups", {
+            method: "POST",
+            body: JSON.stringify({ name: groupName, members: memberNames, colors }),
+          });
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          closeGroupSheet();
+          await refreshSettlement();
+          showToast("グループを保存しました");
+          return "";
+        }
+
+        syncActiveGroup();
+        const id = `g${Date.now().toString(36)}`;
+        const members = memberNames.map((name, index) => ({
+          id: `m${Date.now().toString(36)}${index}`,
+          name,
+          color: colors[index % colors.length],
+          linkedToCurrentUser: index === 0,
+          available: index !== 0,
+        }));
+
+        const newGroup = {
+          id,
+          groupName,
+          inviteToken: "",
+          canManage: true,
+          settlementChecks: {},
+          members,
+          expenses: [],
+          memberCount: members.length,
+          expenseCount: 0,
+          totalAmount: 0,
+          updatedAt: new Date().toISOString(),
+        };
+
+        state.groups.unshift(newGroup);
+        state.activeGroupId = id;
+        state.groupName = groupName;
+        state.inviteToken = "";
+        state.canManage = true;
+        state.settlementChecks = {};
+        state.members = structuredClone(members);
+        state.expenses = [];
+        state.activeTab = "expenses";
+        currentScreen = "detail";
+        saveState({ touch: true });
+        closeGroupSheet();
+        render();
+        refreshSettlement();
+        showToast("グループを作成しました");
+        return "";
+      }
+
+      async function addMember(name) {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        if (useRemote()) {
+          if (!state.activeGroupId) {
+            showToast("先にグループを作成してください");
+            return;
+          }
+          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/members`, {
+            method: "POST",
+            body: JSON.stringify({
+              name: trimmed,
+              color: colors[state.members.length % colors.length],
+            }),
+          });
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          await refreshSettlement();
+          showToast("メンバーを保存しました");
+          return;
+        }
+
+        const id = `m${Date.now().toString(36)}`;
+        state.members.push({
+          id,
+          name: trimmed,
+          color: colors[state.members.length % colors.length],
+          available: true,
+          linkedToCurrentUser: false,
+        });
+        state.expenses = state.expenses.map((expense) => ({
+          ...expense,
+          debtorMemberIds: [...new Set([...expense.debtorMemberIds, id])],
+        }));
+        state.settlementChecks = {};
+        saveState({ touch: true });
+        refreshSettlement();
+        showToast("メンバーを追加しました");
+      }
+
+      async function deleteExpense(id) {
+        if (useRemote()) {
+          const group = await apiJson(
+            `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(id)}`,
+            { method: "DELETE" },
+          );
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          await refreshSettlement();
+          showToast("支払いを削除しました");
+          return;
+        }
+
+        state.expenses = state.expenses.filter((expense) => expense.id !== id);
+        state.settlementChecks = {};
+        saveState({ touch: true });
+        refreshSettlement();
+      }
+
+      async function deleteMember(id) {
+        if (state.members.length <= 2) return;
+
+        if (useRemote()) {
+          const group = await apiJson(
+            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}`,
+            { method: "DELETE" },
+          );
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          await refreshSettlement();
+          showToast("メンバーを削除しました");
+          return;
+        }
+
+        state.members = state.members.filter((member) => member.id !== id);
+        state.expenses = state.expenses
+          .filter((expense) => expense.payerMemberId !== id)
+          .map((expense) => ({
+            ...expense,
+            debtorMemberIds: expense.debtorMemberIds.filter((memberId) => memberId !== id),
+          }))
+          .filter((expense) => expense.debtorMemberIds.length > 0);
+        state.settlementChecks = {};
+        saveState({ touch: true });
+        refreshSettlement();
+        showToast("メンバーを削除しました");
+      }
+
+      async function claimCurrentMember(id) {
+        if (useRemote()) {
+          const group = await apiJson(
+            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
+            { method: "POST" },
+          );
+          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          showToast("自分のメンバーにしました");
+          return;
+        }
+
+        state.members = state.members.map((member) => ({
+          ...member,
+          linkedToCurrentUser: member.id === id,
+          available: member.id === id ? false : member.linkedToCurrentUser ? true : member.available !== false,
+        }));
+        saveState({ touch: true });
+        render();
+        showToast("自分のメンバーにしました");
+      }
+
+      async function unlinkCurrentMember(id) {
+        if (useRemote()) {
+          const result = await apiJson(
+            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
+            { method: "DELETE" },
+          );
+          if (result.unlinked) {
+            currentScreen = "home";
+            await loadRemoteState().catch(() => {
+              state = emptyRemoteState([]);
+              render();
+            });
+            showToast("メンバー紐づけを解除しました");
+            return;
+          }
+          applyRemoteGroup(result, state.groups, { touch: true, openDetail: true });
+          showToast("メンバー紐づけを解除しました");
+          return;
+        }
+
+        state.members = state.members.map((member) =>
+          member.id === id ? { ...member, linkedToCurrentUser: false, available: true } : member,
+        );
+        saveState({ touch: true });
+        render();
+        showToast("メンバー紐づけを解除しました");
+      }
+
+      function suggestExpenseTitle() {
+        const titles = ["スーパー", "ランチ", "タクシー", "宿代", "チケット"];
+        return titles[state.expenses.length % titles.length];
+      }
+
+      async function inviteLink() {
+        if (!state.activeGroupId) return config.line?.miniAppBaseUrl || location.href;
+        const token = state.inviteToken ? `?token=${encodeURIComponent(state.inviteToken)}` : "";
+        const path = `/groups/${encodeURIComponent(state.activeGroupId)}/invite${token}`;
+        const response = await fetch(`/api/permanent-link?path=${encodeURIComponent(path)}`);
+        const data = await response.json();
+        return data.permanentLink || data.endpointUrl || location.href;
+      }
+
+      function settlementText(link) {
+        const lines = [`${state.groupName}の清算`, `合計 ${yen(totalExpenses())}`];
+        if (settlement.items?.length) {
+          settlement.items.forEach((item) => {
+            const from = memberById(item.fromMemberId)?.name ?? "不明";
+            const to = memberById(item.toMemberId)?.name ?? "不明";
+            lines.push(`${from} → ${to} ${yen(item.amount)}`);
+          });
+        } else {
+          lines.push("清算は不要です");
+        }
+        lines.push(link);
+        return lines.join("\n");
+      }
+
+      function paymentRequestText(item, link) {
+        const from = memberById(item.fromMemberId)?.name ?? "不明";
+        const to = memberById(item.toMemberId)?.name ?? "不明";
+        return [
+          `${from}さんへ`,
+          `${state.groupName}の清算お願いします。`,
+          `${to}さんに ${yen(item.amount)} を送ってください。`,
+          link,
+        ].join("\n");
+      }
+
+      async function shareSettlement() {
+        const link = await inviteLink();
+        const text = settlementText(link);
+
+        if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
+          await liff.shareTargetPicker([{ type: "text", text }]);
+          showToast("LINEで共有しました");
+          return;
+        }
+
+        await copyText(text);
+        showToast("共有文をコピーしました");
+      }
+
+      async function requestPayment(key) {
+        const item = (settlement.items ?? []).find((candidate) => settlementItemKey(candidate) === key);
+        if (!item) return;
+
+        const link = await inviteLink();
+        const text = paymentRequestText(item, link);
+        if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
+          await liff.shareTargetPicker([{ type: "text", text }]);
+          showToast("請求メッセージを送信しました");
+          return;
+        }
+
+        await copyText(text);
+        showToast("請求メッセージをコピーしました");
+      }
+
+      async function copyInvite() {
+        const link = await inviteLink();
+        await copyText(link);
+        showToast("招待リンクをコピーしました");
+      }
+
+      async function joinInvite() {
+        if (!inviteContext) return;
+        if (!currentUserAuthenticated) {
+          showToast("LINEログイン後に参加できます");
+          if (window.liff && !liff.isLoggedIn?.()) liff.login({ redirectUri: location.href });
+          return;
+        }
+
+        const selectedMember = document.querySelector('input[name="invite-member"]:checked')?.value ?? "new";
+        const inputName = document.getElementById("invite-name")?.value ?? "";
+        const payload = {
+          token: inviteContext.token,
+          memberId: selectedMember === "new" ? "" : selectedMember,
+          name: selectedMember === "new" ? inputName || currentUserName : "",
+          color: colors[state.members.length % colors.length],
+        };
+        const group = await apiJson(`/api/invites/${encodeURIComponent(inviteContext.groupId)}/join`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        inviteContext = null;
+        invitePreview = null;
+        history.replaceState(null, "", "/");
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        await refreshSettlement();
+        showToast("グループに参加しました");
+      }
+
+      async function archiveCurrentGroup() {
+        if (!state.activeGroupId) return;
+        if (!confirm(`${state.groupName}をアーカイブしますか？`)) return;
+
+        if (useRemote()) {
+          await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, { method: "DELETE" });
+          const data = await apiJson("/api/groups");
+          currentScreen = "home";
+          state = data.groups?.length ? { ...state, groups: data.groups } : emptyRemoteState([]);
+          if (data.groups?.length) {
+            const nextGroup = data.groups[0];
+            const group = await apiJson(`/api/groups/${encodeURIComponent(nextGroup.id)}`);
+            applyRemoteGroup(group, data.groups, { openDetail: false });
+          } else {
+            currentScreen = "home";
+            render();
+          }
+          await refreshSettlement();
+          showToast("グループをアーカイブしました");
+          return;
+        }
+
+        state.groups = state.groups.filter((group) => group.id !== state.activeGroupId);
+        const nextGroup = state.groups[0];
+        if (nextGroup) {
+          state.activeGroupId = nextGroup.id;
+          state.groupName = nextGroup.groupName;
+          state.inviteToken = nextGroup.inviteToken || "";
+          state.canManage = nextGroup.canManage !== false;
+          state.members = structuredClone(nextGroup.members);
+          state.expenses = structuredClone(nextGroup.expenses);
+          state.settlementChecks = nextGroup.settlementChecks ?? {};
+        } else {
+          state = emptyRemoteState([]);
+        }
+        currentScreen = "home";
+        saveState();
+        render();
+        refreshSettlement();
+        showToast("グループをアーカイブしました");
+      }
+
+      async function toggleSettlement(key) {
+        const item = (settlement.items ?? []).find((candidate) => settlementItemKey(candidate) === key);
+        if (!item) return;
+        const checked = !confirmationKeys().has(key);
+
+        if (useRemote()) {
+          const data = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement/confirmations`, {
+            method: "POST",
+            body: JSON.stringify({
+              fromMemberId: item.fromMemberId,
+              toMemberId: item.toMemberId,
+              amount: item.amount,
+              checked,
+            }),
+          });
+          settlement = { ...settlement, confirmations: data.confirmations ?? [] };
+          render();
+          showToast(checked ? "精算済みにしました" : "未精算に戻しました");
+          return;
+        }
+
+        if (!state.settlementChecks) state.settlementChecks = {};
+        if (checked) state.settlementChecks[key] = { ...item, confirmedAt: new Date().toISOString() };
+        else delete state.settlementChecks[key];
+        saveState();
+        settlement = {
+          ...settlement,
+          confirmations: Object.values(state.settlementChecks).filter(Boolean),
+        };
+        render();
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        elements.toast.textContent = message;
+        elements.toast.hidden = false;
+        toastTimer = setTimeout(() => {
+          elements.toast.hidden = true;
+        }, 2400);
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      async function refreshSession() {
+        const response = await fetch("/api/me");
+        return response.json();
+      }
+
+      async function authenticateWithLine() {
+        const idToken = liff.getIDToken();
+        if (!idToken) return;
+
+        const response = await fetch("/api/auth/line", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idToken }),
+        });
+        await response.json();
+      }
+
+      async function initializeMiniApp() {
+        config = await fetch("/api/config").then((response) => response.json());
+        const session = await refreshSession().catch(() => null);
+        currentUserAuthenticated = Boolean(session?.authenticated);
+        await checkStorageStatus();
+        await loadInvitePreview().catch((error) => {
+          cloudStorageNotice = error.message || "招待リンクを確認できませんでした";
+          render();
+        });
+
+        if (!config.line.liffId) {
+          elements.connectionStatus.textContent = "ローカル";
+          if (session?.authenticated) await loadRemoteState().catch(() => {
+            cloudStorageNotice = "クラウド保存は停止中です";
+            render();
+          });
+          return;
+        }
+
+        if (!window.liff) {
+          elements.connectionStatus.textContent = "SDK未読込";
+          if (session?.authenticated) await loadRemoteState().catch(() => {
+            cloudStorageNotice = "クラウド保存は停止中です";
+            render();
+          });
+          return;
+        }
+
+        await liff.init({ liffId: config.line.liffId });
+        elements.connectionStatus.textContent = liff.isInClient() ? "LINE接続" : "ブラウザ";
+
+        if (liff.isLoggedIn()) {
+          const profile = await liff.getProfile().catch(() => null);
+          if (profile?.displayName) currentUserName = profile.displayName;
+          await authenticateWithLine().catch(() => null);
+          currentUserAuthenticated = true;
+          render();
+          await loadRemoteState().catch(() => {
+            cloudStorageNotice = "クラウド保存は停止中です";
+            render();
+          });
+          return;
+        }
+
+        if (session?.authenticated) await loadRemoteState().catch(() => {
+          cloudStorageNotice = "クラウド保存は停止中です";
+          render();
+        });
+      }
+
+      document.querySelector(".tabs").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-tab]");
+        if (!button) return;
+        state.activeTab = button.dataset.tab;
+        saveState();
+        render();
+      });
+
+      document.body.addEventListener("click", async (event) => {
+        const openGroupCard = event.target.closest("[data-open-group]");
+        if (openGroupCard) {
+          await switchGroup(openGroupCard.dataset.openGroup, { openDetail: true }).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const editExpenseButton = event.target.closest("[data-edit-expense]");
+        if (editExpenseButton) {
+          openExpenseSheet(editExpenseButton.dataset.editExpense);
+          return;
+        }
+
+        const settlementButton = event.target.closest("[data-toggle-settlement]");
+        if (settlementButton) {
+          await toggleSettlement(settlementButton.dataset.toggleSettlement).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const requestPaymentButton = event.target.closest("[data-request-payment]");
+        if (requestPaymentButton) {
+          await requestPayment(requestPaymentButton.dataset.requestPayment).catch(() => showToast("請求メッセージを送れませんでした"));
+          return;
+        }
+
+        const deleteExpenseButton = event.target.closest("[data-delete-expense]");
+        if (deleteExpenseButton) {
+          await deleteExpense(deleteExpenseButton.dataset.deleteExpense).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const claimMemberButton = event.target.closest("[data-claim-member]");
+        if (claimMemberButton) {
+          await claimCurrentMember(claimMemberButton.dataset.claimMember).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const unlinkMemberButton = event.target.closest("[data-unlink-member]");
+        if (unlinkMemberButton) {
+          await unlinkCurrentMember(unlinkMemberButton.dataset.unlinkMember).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const deleteMemberButton = event.target.closest("[data-delete-member]");
+        if (deleteMemberButton) {
+          await deleteMember(deleteMemberButton.dataset.deleteMember).catch((error) => showToast(error.message));
+          return;
+        }
+
+        const action = event.target.closest("[data-action]")?.dataset.action;
+        if (action === "open-group") openGroupSheet();
+        if (action === "join-invite") await joinInvite().catch((error) => showToast(error.message));
+        if (action === "archive-group") await archiveCurrentGroup().catch((error) => showToast(error.message));
+        if (action === "share") await shareSettlement().catch(() => showToast("共有できませんでした"));
+        if (action === "copy-invite") await copyInvite().catch(() => showToast("コピーできませんでした"));
+      });
+
+      document.getElementById("open-expense").addEventListener("click", () => openExpenseSheet());
+      document.getElementById("open-group").addEventListener("click", openGroupSheet);
+      elements.homeButton.addEventListener("click", goHome);
+      elements.brandHome.addEventListener("click", goHome);
+      document.getElementById("invite-button").addEventListener("click", () => copyInvite().catch(() => showToast("コピーできませんでした")));
+      document.getElementById("share-button").addEventListener("click", () => shareSettlement().catch(() => showToast("共有できませんでした")));
+      elements.groupPicker.addEventListener("change", (event) => {
+        switchGroup(event.target.value).catch((error) => showToast(error.message));
+      });
+
+      document.querySelectorAll("[data-close-sheet]").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.target.closest(".sheet").hidden = true;
+        });
+      });
+
+      elements.sheet.addEventListener("click", (event) => {
+        if (event.target === elements.sheet) closeExpenseSheet();
+      });
+
+      elements.groupSheet.addEventListener("click", (event) => {
+        if (event.target === elements.groupSheet) closeGroupSheet();
+      });
+
+      elements.form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const error = await saveExpense(new FormData(elements.form)).catch((caughtError) => caughtError.message);
+        elements.formError.textContent = error;
+      });
+
+      elements.groupForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const error = await createGroup(new FormData(elements.groupForm)).catch((caughtError) => caughtError.message);
+        elements.groupFormError.textContent = error;
+      });
+
+      elements.membersView.addEventListener("submit", async (event) => {
+        const form = event.target.closest("#member-form");
+        if (!form) return;
+        event.preventDefault();
+        const input = form.querySelector("#member-name");
+        await addMember(input.value).catch((error) => showToast(error.message));
+        input.value = "";
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeAllSheets();
+      });
+
+      render();
+      refreshSettlement();
+      initializeMiniApp().catch(() => {
+        elements.connectionStatus.textContent = "確認中";
+      });
+    </script>
+  </body>
+</html>

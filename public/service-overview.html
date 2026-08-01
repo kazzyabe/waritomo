@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ワリトモ | LINEで使える割り勘ミニアプリ</title>
+    <meta
+      name="description"
+      content="ワリトモは、旅行、飲み会、イベントなどの立替支払いを記録し、割り勘額を計算してLINEで共有できるLINEミニアプリです。"
+    />
+    <link rel="icon" href="/waritomo-icon-130.png" />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8f4;
+        --surface: #ffffff;
+        --surface-soft: #f0f7f2;
+        --text: #20242c;
+        --muted: #667085;
+        --line: #dfe8df;
+        --green: #06c755;
+        --green-dark: #057f3a;
+        --blue: #315c83;
+        --yellow: #ffd66b;
+        --pink: #f7b7a3;
+        --shadow: 0 18px 55px rgb(24 50 74 / 14%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        overflow-x: hidden;
+        background:
+          radial-gradient(circle at 18% 8%, rgb(255 214 107 / 34%), transparent 34%),
+          radial-gradient(circle at 84% 16%, rgb(6 199 85 / 18%), transparent 30%),
+          linear-gradient(180deg, #fbf7ed 0%, var(--bg) 48%, #ffffff 100%);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        line-height: 1.75;
+      }
+
+      header,
+      main,
+      footer {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 18px 0;
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: inherit;
+        text-decoration: none;
+        font-weight: 800;
+      }
+
+      .brand img {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        box-shadow: 0 10px 24px rgb(32 36 44 / 12%);
+      }
+
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 14px;
+        font-size: 14px;
+      }
+
+      a {
+        color: var(--green-dark);
+      }
+
+      nav a {
+        color: #3d4857;
+        text-decoration: none;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 0 18px;
+        border-radius: 8px;
+        color: #ffffff;
+        background: var(--green);
+        font-weight: 800;
+        text-decoration: none;
+        box-shadow: 0 12px 28px rgb(6 199 85 / 24%);
+      }
+
+      .button.secondary {
+        color: var(--green-dark);
+        background: #ffffff;
+        border: 1px solid #bfe8cc;
+        box-shadow: none;
+      }
+
+      main {
+        padding: 18px 0 64px;
+      }
+
+      .hero {
+        min-height: min(760px, calc(100vh - 72px));
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+        gap: clamp(28px, 6vw, 64px);
+        align-items: center;
+      }
+
+      .kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 18px;
+        padding: 6px 10px;
+        border: 1px solid #bfe8cc;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 68%);
+        color: var(--green-dark);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      h1 {
+        max-width: 9em;
+        margin: 0;
+        font-size: clamp(42px, 8vw, 82px);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .hero-line {
+        display: block;
+      }
+
+      .hero-copy {
+        max-width: 640px;
+        margin: 22px 0 0;
+        color: #465264;
+        font-size: clamp(17px, 2vw, 20px);
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .trust-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 24px;
+      }
+
+      .pill {
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgb(255 255 255 / 74%);
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .showcase {
+        display: grid;
+        gap: 16px;
+      }
+
+      .app-screenshot-card {
+        width: min(360px, 100%);
+        margin-left: auto;
+        padding: 10px;
+        border: 1px solid #d7e2df;
+        border-radius: 28px;
+        background: rgb(255 255 255 / 72%);
+        box-shadow: var(--shadow);
+      }
+
+      .app-screenshot {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 22px;
+      }
+
+      .screen {
+        overflow: hidden;
+        min-height: 560px;
+        border-radius: 24px;
+        background: #f7faf6;
+      }
+
+      .screen-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px;
+        background: #ffffff;
+        border-bottom: 1px solid #e7eee8;
+      }
+
+      .screen-brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-weight: 800;
+      }
+
+      .screen-brand img {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+      }
+
+      .screen-body {
+        padding: 18px;
+      }
+
+      .trip-card {
+        padding: 18px;
+        border-radius: 8px;
+        background: #ffffff;
+        border: 1px solid #e2ebe4;
+        box-shadow: 0 12px 25px rgb(32 36 44 / 6%);
+      }
+
+      .trip-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .trip-title {
+        margin: 0;
+        font-weight: 900;
+        font-size: 18px;
+      }
+
+      .amount {
+        margin: 8px 0 0;
+        font-size: 32px;
+        line-height: 1.1;
+        font-weight: 900;
+      }
+
+      .avatar-row {
+        display: flex;
+        margin-top: 16px;
+      }
+
+      .avatar {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        margin-right: -8px;
+        border: 2px solid #ffffff;
+        border-radius: 999px;
+        background: var(--yellow);
+        color: #2d2b23;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .avatar:nth-child(2) {
+        background: var(--pink);
+      }
+
+      .avatar:nth-child(3) {
+        background: #a9d6ff;
+      }
+
+      .expense-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .expense {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        background: #ffffff;
+        border: 1px solid #e2ebe4;
+      }
+
+      .expense strong,
+      .expense span {
+        display: block;
+      }
+
+      .expense span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .settlement {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 8px;
+        background: #eaf8ef;
+        border: 1px solid #b9e6c6;
+      }
+
+      .qr-card {
+        width: min(360px, 100%);
+        margin-left: auto;
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        padding: 14px;
+        border: 1px solid #dfe8df;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 82%);
+        box-shadow: 0 10px 28px rgb(24 50 74 / 10%);
+      }
+
+      .qr-card img {
+        width: 112px;
+        height: 112px;
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .qr-title {
+        margin: 0;
+        font-weight: 900;
+      }
+
+      .qr-note {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .section {
+        padding: clamp(34px, 7vw, 72px) 0;
+      }
+
+      .section-head {
+        max-width: 760px;
+        margin-bottom: 24px;
+      }
+
+      h2 {
+        margin: 0;
+        color: #16283a;
+        font-size: clamp(28px, 5vw, 44px);
+        line-height: 1.16;
+        letter-spacing: 0;
+      }
+
+      .section-lead {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        min-height: 190px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgb(255 255 255 / 82%);
+        box-shadow: 0 12px 30px rgb(24 50 74 / 8%);
+      }
+
+      .card h3,
+      .step h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .card p,
+      .step p,
+      .plain p,
+      .plain li {
+        color: #4a5566;
+      }
+
+      .icon-mark {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 14px;
+        border-radius: 8px;
+        background: var(--surface-soft);
+        color: var(--green-dark);
+        font-weight: 900;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .step {
+        position: relative;
+        min-height: 210px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .step-number {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        margin-bottom: 14px;
+        border-radius: 999px;
+        background: var(--green);
+        color: #ffffff;
+        font-weight: 900;
+      }
+
+      .plain {
+        padding: clamp(24px, 5vw, 42px);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .plain + .plain {
+        margin-top: 16px;
+      }
+
+      .plain h3 {
+        margin: 0 0 10px;
+        font-size: 22px;
+      }
+
+      .plain p,
+      .plain ul {
+        margin: 0 0 14px;
+      }
+
+      .plain ul {
+        padding-left: 1.35em;
+      }
+
+      .notice {
+        border-color: #b9e6c6;
+        background: #eaf8ef;
+      }
+
+      .final-cta {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 180px;
+        gap: 24px;
+        align-items: center;
+        padding: clamp(28px, 6vw, 48px);
+        border-radius: 8px;
+        background: #16283a;
+        color: #ffffff;
+      }
+
+      .final-cta h2,
+      .final-cta p {
+        color: #ffffff;
+      }
+
+      .final-cta p {
+        max-width: 650px;
+        margin: 14px 0 0;
+        color: rgb(255 255 255 / 78%);
+      }
+
+      .final-cta img {
+        width: 180px;
+        height: 180px;
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      footer {
+        padding: 0 0 34px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 860px) {
+        header {
+          position: static;
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .hero,
+        .grid,
+        .steps,
+        .final-cta {
+          grid-template-columns: 1fr;
+        }
+
+        .app-screenshot-card,
+        .qr-card {
+          margin-left: 0;
+        }
+
+        .screen {
+          min-height: auto;
+        }
+
+        .final-cta img {
+          width: 160px;
+          height: 160px;
+        }
+      }
+
+      @media (max-width: 520px) {
+        .hero-actions,
+        nav {
+          flex-direction: column;
+          align-items: stretch;
+          width: 100%;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .qr-card {
+          grid-template-columns: 96px minmax(0, 1fr);
+        }
+
+        .qr-card img {
+          width: 96px;
+          height: 96px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/">
+        <img src="/waritomo-icon-130.png" alt="" />
+        <span>ワリトモ</span>
+      </a>
+      <nav aria-label="関連ページ">
+        <a href="#features">できること</a>
+        <a href="#how-to-use">使い方</a>
+        <a href="#business">事業内容</a>
+        <a href="/privacy">プライバシー</a>
+        <a href="/support">サポート</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="kicker">LINEミニアプリ / 無料で使える割り勘管理</p>
+          <h1 id="hero-title"><span class="hero-line">旅行も飲み会も、</span><span class="hero-line">清算で迷わない。</span></h1>
+          <p class="hero-copy">
+            ワリトモは、友だち同士の立替支払いをLINE上で記録し、誰が誰にいくら支払えばいいかを自動で整理する割り勘ミニアプリです。
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="https://miniapp.line.me/2010522907-PfrCcL2F">ミニアプリを開く</a>
+            <a class="button secondary" href="#business">サービス詳細を見る</a>
+          </div>
+          <div class="trust-row" aria-label="サービスの特徴">
+            <span class="pill">アプリ内決済なし</span>
+            <span class="pill">送金・収納代行なし</span>
+            <span class="pill">LINEで共有</span>
+            <span class="pill">提供者: Plus Insight株式会社</span>
+          </div>
+        </div>
+
+        <div class="showcase">
+          <div class="app-screenshot-card" aria-label="ワリトモの実際の画面">
+            <img class="app-screenshot" src="/waritomo-app-screenshot.png" alt="ワリトモの実際のミニアプリ画面" />
+          </div>
+
+          <div class="qr-card">
+            <img src="/miniapp-production-qr.png" alt="ワリトモ本番ミニアプリURLのQRコード" />
+            <div>
+              <p class="qr-title">スマホで開く</p>
+              <p class="qr-note">QRを読み取るか、ボタンからLINEミニアプリを起動できます。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-head">
+          <h2>割り勘に必要な流れを、LINEの中で。</h2>
+          <p class="section-lead">グループ作成から支払い記録、清算メッセージの共有まで、友だちに渡しやすい形でまとめます。</p>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <span class="icon-mark">1</span>
+            <h3>グループを作成</h3>
+            <p>旅行、飲み会、イベントごとにグループを作成し、メンバーを登録できます。</p>
+          </div>
+          <div class="card">
+            <span class="icon-mark">2</span>
+            <h3>立替を記録</h3>
+            <p>支払者、金額、内容、割り勘対象者を入力して、あとから編集できます。</p>
+          </div>
+          <div class="card">
+            <span class="icon-mark">3</span>
+            <h3>清算を共有</h3>
+            <p>誰が誰にいくら支払うかを自動計算し、LINEで共有できます。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="how-to-use" class="section">
+        <div class="section-head">
+          <h2>使い方は4ステップ。</h2>
+          <p class="section-lead">専用アプリのインストールなしで、LINEミニアプリとして起動できます。</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <span class="step-number">1</span>
+            <h3>グループ作成</h3>
+            <p>旅行や飲み会など、清算したい単位でグループを作ります。</p>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <h3>メンバー招待</h3>
+            <p>招待リンクをLINEで送り、参加者が自分のメンバー名を紐づけます。</p>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <h3>支払い追加</h3>
+            <p>立替内容を入力して、割り勘対象メンバーを選びます。</p>
+          </div>
+          <div class="step">
+            <span class="step-number">4</span>
+            <h3>清算チェック</h3>
+            <p>清算済みチェックを付けながら、支払い状況を確認できます。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="business" class="section">
+        <div class="plain">
+          <h2>サービスの事業内容</h2>
+          <p>
+            Plus Insight株式会社は、LINEミニアプリ「ワリトモ」を通じて、少人数グループの立替支払い記録と清算額計算を支援するWebアプリケーションを提供します。
+            ユーザーはLINE上でグループを作成し、参加メンバー、支払い内容、支払者、割り勘対象者を入力できます。入力された支払い情報をもとに、誰が誰にいくら支払えばよいかを自動計算し、清算内容をLINEで共有できます。
+          </p>
+        </div>
+
+        <div class="plain notice">
+          <h3>提供しない機能</h3>
+          <ul>
+            <li>アプリ内決済、送金、資金移動、収納代行、貸付、債権回収</li>
+            <li>クレジットカード、銀行口座、電子マネー、QRコード決済との決済連携</li>
+            <li>商品販売、予約受付、チケット販売、有料コンテンツ販売</li>
+            <li>第三者が投稿する店舗情報、求人情報、広告情報などの掲載</li>
+          </ul>
+        </div>
+
+        <div class="plain">
+          <h3>基本情報</h3>
+          <p>サービス名: ワリトモ</p>
+          <p>提供者: Plus Insight株式会社</p>
+          <p>提供形態: LINEミニアプリ</p>
+          <p>利用料金: 無料</p>
+          <p>取り扱う情報: LINEログインにより取得するユーザー識別子、表示名、プロフィール画像URL、ユーザーが入力するグループ名、メンバー名、支払い内容、金額、清算状況</p>
+          <p>詳細: <a href="/privacy">プライバシーポリシー</a> / <a href="/terms">利用規約</a> / <a href="/support">サポート</a></p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="final-cta">
+          <div>
+            <h2>ワリトモをLINEで開く</h2>
+            <p>QRコードをスマートフォンで読み取るか、ページ上部のボタンから審査用LINEミニアプリを起動できます。</p>
+          </div>
+          <img src="/miniapp-production-qr.png" alt="ワリトモ本番ミニアプリURLのQRコード" />
+        </div>
+      </section>
+    </main>
+
+    <footer>© 2026 Plus Insight株式会社</footer>
+  </body>
+</html>
