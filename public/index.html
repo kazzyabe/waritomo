@@ -979,7 +979,7 @@
           <div class="field-grid">
             <label>
               内容
-              <input id="expense-title" name="title" maxlength="28" required value="スーパー" />
+              <input id="expense-title" name="title" maxlength="28" required placeholder="例: スーパー" />
             </label>
             <label>
               金額
@@ -1905,7 +1905,7 @@
         elements.formError.textContent = "";
         elements.expenseSheetTitle.textContent = expense ? "支払いを編集" : "支払いを追加";
         elements.expenseSubmit.textContent = expense ? "保存する" : "追加する";
-        elements.title.value = expense?.title ?? suggestExpenseTitle();
+        elements.title.value = expense?.title ?? "";
         elements.amount.value = expense?.amount ?? "";
         elements.sheet.hidden = false;
         renderExpenseFormOptions(expense);
@@ -2283,11 +2283,6 @@
         saveState({ touch: true });
         render();
         showToast("メンバー紐づけを解除しました");
-      }
-
-      function suggestExpenseTitle() {
-        const titles = ["スーパー", "ランチ", "タクシー", "宿代", "チケット"];
-        return titles[state.expenses.length % titles.length];
       }
 
       async function inviteLink() {
