@@ -191,6 +191,9 @@ async function handleApi(request, response) {
       storage: {
         mode: isDatabaseEnabled() ? "database" : "browser",
       },
+      analytics: {
+        measurementId: process.env.GA_MEASUREMENT_ID ?? "",
+      },
     });
     return;
   }

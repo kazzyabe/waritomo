@@ -24,6 +24,7 @@ gcloud run deploy waritomo \
   --set-env-vars LINE_LIFF_ID=YOUR_LIFF_ID \
   --set-env-vars LINE_MINIAPP_BASE_URL=https://miniapp.line.me/YOUR_LIFF_ID \
   --set-env-vars LINE_CHANNEL_ID=YOUR_CHANNEL_ID \
+  --set-env-vars GA_MEASUREMENT_ID=G-XXXXXXXXXX \
   --set-env-vars CLOUD_SQL_CONNECTION_NAME=PROJECT_ID:asia-northeast1:INSTANCE_NAME \
   --set-secrets DATABASE_URL=DATABASE_URL:latest \
   --set-secrets LINE_CHANNEL_SECRET=LINE_CHANNEL_SECRET:latest \

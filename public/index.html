@@ -1089,7 +1089,11 @@
 
       let state = loadState();
       let settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
-      let config = { line: { liffId: "", miniAppBaseUrl: "" }, storage: { mode: "browser" } };
+      let config = {
+        line: { liffId: "", miniAppBaseUrl: "" },
+        storage: { mode: "browser" },
+        analytics: { measurementId: "" },
+      };
       let remoteReady = false;
       let currentUserName = "あなた";
       let currentUserAuthenticated = false;
@@ -1183,6 +1187,7 @@
         syncActiveGroup();
         currentScreen = "home";
         render();
+        trackEvent("view_home");
       }
 
       function normalizeMemberLinks(members, options = {}) {
@@ -1367,6 +1372,59 @@
 
       function confirmationKeys() {
         return new Set((settlement.confirmations ?? []).map(settlementItemKey));
+      }
+
+      function initializeAnalytics() {
+        const measurementId = config.analytics?.measurementId;
+        if (!measurementId || window.gtag) return;
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function gtag() {
+          window.dataLayer.push(arguments);
+        };
+
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+        document.head.appendChild(script);
+
+        window.gtag("js", new Date());
+        window.gtag("config", measurementId, {
+          send_page_view: false,
+          app_name: "waritomo",
+        });
+      }
+
+      function trackEvent(eventName, params = {}) {
+        if (!window.gtag || !config.analytics?.measurementId) return;
+
+        window.gtag("event", eventName, {
+          app_name: "waritomo",
+          app_mode: "line_mini_app",
+          storage_mode: config.storage?.mode ?? "browser",
+          screen_name: currentScreen,
+          active_tab: state.activeTab,
+          has_group: Boolean(state.activeGroupId),
+          ...params,
+        });
+      }
+
+      function trackPageView(pagePath = location.pathname) {
+        if (!window.gtag || !config.analytics?.measurementId) return;
+
+        window.gtag("event", "page_view", {
+          page_title: document.title,
+          page_location: location.href,
+          page_path: pagePath,
+          app_name: "waritomo",
+          app_mode: "line_mini_app",
+          storage_mode: config.storage?.mode ?? "browser",
+          screen_name: currentScreen,
+        });
+      }
+
+      function trackInitialPageView() {
+        trackPageView(inviteContext ? "/groups/:groupId/invite" : location.pathname);
       }
 
       async function apiJson(path, options = {}) {
@@ -1998,6 +2056,10 @@
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           closeExpenseSheet();
           await refreshSettlement();
+          trackEvent("expense_created", {
+            member_count: state.members.length,
+            debtor_count: debtorMemberIds.length,
+          });
           showToast("支払いを保存しました");
           return "";
         }
@@ -2015,6 +2077,10 @@
         saveState({ touch: true });
         closeExpenseSheet();
         refreshSettlement();
+        trackEvent("expense_created", {
+          member_count: state.members.length,
+          debtor_count: debtorMemberIds.length,
+        });
         showToast("支払いを追加しました");
         return "";
       }
@@ -2031,6 +2097,10 @@
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           closeExpenseSheet();
           await refreshSettlement();
+          trackEvent("expense_updated", {
+            member_count: state.members.length,
+            debtor_count: payload.debtorMemberIds.length,
+          });
           showToast("支払いを保存しました");
           return "";
         }
@@ -2041,6 +2111,10 @@
         saveState({ touch: true });
         closeExpenseSheet();
         refreshSettlement();
+        trackEvent("expense_updated", {
+          member_count: state.members.length,
+          debtor_count: payload.debtorMemberIds.length,
+        });
         showToast("支払いを保存しました");
         return "";
       }
@@ -2059,6 +2133,10 @@
           const group = await apiJson(`/api/groups/${encodeURIComponent(groupId)}`);
           applyRemoteGroup(group, state.groups, { openDetail });
           await refreshSettlement();
+          trackEvent("group_opened", {
+            member_count: state.members.length,
+            expense_count: state.expenses.length,
+          });
           return;
         }
 
@@ -2080,6 +2158,10 @@
         saveState();
         render();
         refreshSettlement();
+        trackEvent("group_opened", {
+          member_count: state.members.length,
+          expense_count: state.expenses.length,
+        });
       }
 
       function parseMemberNames(value) {
@@ -2108,6 +2190,7 @@
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           closeGroupSheet();
           await refreshSettlement();
+          trackEvent("group_created", { member_count: memberNames.length });
           showToast("グループを保存しました");
           return "";
         }
@@ -2151,6 +2234,7 @@
         closeGroupSheet();
         render();
         refreshSettlement();
+        trackEvent("group_created", { member_count: memberNames.length });
         showToast("グループを作成しました");
         return "";
       }
@@ -2173,6 +2257,7 @@
           });
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           await refreshSettlement();
+          trackEvent("member_added", { member_count: state.members.length });
           showToast("メンバーを保存しました");
           return;
         }
@@ -2193,6 +2278,7 @@
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
+        trackEvent("member_added", { member_count: state.members.length });
         showToast("メンバーを追加しました");
       }
 
@@ -2204,6 +2290,7 @@
           );
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           await refreshSettlement();
+          trackEvent("expense_deleted", { expense_count: state.expenses.length });
           showToast("支払いを削除しました");
           return;
         }
@@ -2213,6 +2300,7 @@
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
+        trackEvent("expense_deleted", { expense_count: state.expenses.length });
       }
 
       async function deleteMember(id) {
@@ -2225,6 +2313,7 @@
           );
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           await refreshSettlement();
+          trackEvent("member_deleted", { member_count: state.members.length });
           showToast("メンバーを削除しました");
           return;
         }
@@ -2241,6 +2330,7 @@
         state.settlementChecks = {};
         saveState({ touch: true });
         refreshSettlement();
+        trackEvent("member_deleted", { member_count: state.members.length });
         showToast("メンバーを削除しました");
       }
 
@@ -2334,11 +2424,13 @@
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
           await liff.shareTargetPicker([{ type: "text", text }]);
+          trackEvent("settlement_shared", { method: "share_target_picker" });
           showToast("LINEで共有しました");
           return;
         }
 
         await copyText(text);
+        trackEvent("settlement_shared", { method: "clipboard" });
         showToast("共有文をコピーしました");
       }
 
@@ -2350,17 +2442,20 @@
         const text = paymentRequestText(item, link);
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
           await liff.shareTargetPicker([{ type: "text", text }]);
+          trackEvent("payment_requested", { method: "share_target_picker" });
           showToast("請求メッセージを送信しました");
           return;
         }
 
         await copyText(text);
+        trackEvent("payment_requested", { method: "clipboard" });
         showToast("請求メッセージをコピーしました");
       }
 
       async function copyInvite() {
         const link = await inviteLink();
         await copyText(link);
+        trackEvent("invite_copied");
         showToast("招待リンクをコピーしました");
       }
 
@@ -2389,6 +2484,7 @@
         history.replaceState(null, "", "/");
         applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         await refreshSettlement();
+        trackEvent("invite_joined", { member_count: state.members.length });
         showToast("グループに参加しました");
       }
 
@@ -2407,6 +2503,7 @@
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           closeEditGroupSheet();
           await refreshSettlement();
+          trackEvent("group_renamed");
           showToast("グループ名を保存しました");
           return "";
         }
@@ -2415,6 +2512,7 @@
         saveState({ touch: true });
         closeEditGroupSheet();
         render();
+        trackEvent("group_renamed");
         showToast("グループ名を保存しました");
         return "";
       }
@@ -2430,6 +2528,7 @@
           });
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
           await refreshSettlement();
+          trackEvent(completed ? "group_completed" : "group_reopened");
           showToast(completed ? "グループを完了にしました" : "完了を解除しました");
           return;
         }
@@ -2437,6 +2536,7 @@
         state.completedAt = completed ? new Date().toISOString() : null;
         saveState({ touch: true });
         render();
+        trackEvent(completed ? "group_completed" : "group_reopened");
         showToast(completed ? "グループを完了にしました" : "完了を解除しました");
       }
 
@@ -2462,6 +2562,7 @@
             render();
           }
           await refreshSettlement();
+          trackEvent("group_deleted");
           showToast("グループを削除しました");
           return;
         }
@@ -2484,6 +2585,7 @@
         saveState();
         render();
         refreshSettlement();
+        trackEvent("group_deleted");
         showToast("グループを削除しました");
       }
 
@@ -2504,6 +2606,7 @@
           });
           settlement = { ...settlement, confirmations: data.confirmations ?? [] };
           render();
+          trackEvent(checked ? "settlement_confirmed" : "settlement_unconfirmed");
           showToast(checked ? "精算済みにしました" : "未精算に戻しました");
           return;
         }
@@ -2517,6 +2620,7 @@
           confirmations: Object.values(state.settlementChecks).filter(Boolean),
         };
         render();
+        trackEvent(checked ? "settlement_confirmed" : "settlement_unconfirmed");
       }
 
       async function copyText(text) {
@@ -2572,6 +2676,7 @@
 
       async function initializeMiniApp() {
         config = await fetch("/api/config").then((response) => response.json());
+        initializeAnalytics();
         const session = await refreshSession().catch(() => null);
         currentUserAuthenticated = Boolean(session?.authenticated);
         await checkStorageStatus();
@@ -2582,6 +2687,7 @@
 
         if (!config.line.liffId) {
           elements.connectionStatus.textContent = "ローカル";
+          trackInitialPageView();
           if (session?.authenticated) await loadRemoteState().catch(() => {
             cloudStorageNotice = "クラウド保存は停止中です";
             render();
@@ -2591,6 +2697,7 @@
 
         if (!window.liff) {
           elements.connectionStatus.textContent = "SDK未読込";
+          trackInitialPageView();
           if (session?.authenticated) await loadRemoteState().catch(() => {
             cloudStorageNotice = "クラウド保存は停止中です";
             render();
@@ -2600,6 +2707,7 @@
 
         await liff.init({ liffId: config.line.liffId });
         elements.connectionStatus.textContent = liff.isInClient() ? "LINE接続" : "ブラウザ";
+        trackInitialPageView();
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile().catch(() => null);
@@ -2626,6 +2734,7 @@
         state.activeTab = button.dataset.tab;
         saveState();
         render();
+        trackEvent("tab_view", { tab_name: state.activeTab });
       });
 
       document.body.addEventListener("click", async (event) => {
