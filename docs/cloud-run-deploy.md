@@ -31,8 +31,8 @@ gcloud run deploy waritomo \
   --set-secrets SESSION_SECRET=SESSION_SECRET:latest
 ```
 
-If `DATABASE_URL` is omitted, the frontend falls back to browser-only storage.
-Set `DATABASE_URL` and run the schema migration before using shared groups.
+If `DATABASE_URL` is omitted, group data cannot be displayed or edited.
+Set `DATABASE_URL` and run the schema migration before using the mini app.
 Run the migration again after schema changes such as group completion fields.
 
 ## Database Migration
@@ -91,7 +91,8 @@ https://miniapp.line.me/YOUR_LIFF_ID
 ## Storage Behavior
 
 - With `DATABASE_URL`: LINE-authenticated users use Cloud SQL.
-- Without `DATABASE_URL`: the UI remains usable with browser `localStorage`.
+- Without `DATABASE_URL` or when Cloud SQL is unavailable: group data is not
+  displayed or editable.
 
 ## Cheapest Operation
 

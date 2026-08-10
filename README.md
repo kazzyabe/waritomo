@@ -32,8 +32,9 @@ Build as a LINE mini app from day one.
 
 - Frontend: React + TypeScript SPA served as a LINE mini app with LIFF SDK.
 - Backend: TypeScript API on Cloud Run.
-- Database: Cloud SQL for PostgreSQL. Without `DATABASE_URL`, the current UI
-  falls back to browser-only `localStorage` for local previews.
+- Database: Cloud SQL for PostgreSQL. The app requires database access; without
+  `DATABASE_URL` or when Cloud SQL is unavailable, group data cannot be displayed
+  or edited.
 - Secrets: Secret Manager.
 - Jobs: Cloud Run Jobs or Cloud Scheduler for currency-rate refreshes and DB maintenance.
 - Observability: Cloud Logging and Error Reporting.
@@ -66,7 +67,7 @@ DATABASE_URL=postgres://user:password@127.0.0.1:5432/waritomo npm run db:migrate
 
 For local mini app configuration, copy `.env.example` values into your shell or
 Cloud Run environment. `LINE_LIFF_ID` is optional for local browser development,
-but required for LINE mini app testing.
+but a reachable `DATABASE_URL` is required to load or edit group data.
 
 Open:
 

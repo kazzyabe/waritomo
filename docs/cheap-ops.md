@@ -33,5 +33,5 @@ scripts/gcp-cheap-status.sh
 
 ## Notes
 
-When Cloud SQL is stopped, the app still opens, but shared database storage is
-unavailable. The UI falls back to browser storage for previews.
+When Cloud SQL is stopped, the app still opens, but group data is unavailable.
+The UI does not fall back to browser storage.

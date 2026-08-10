@@ -189,7 +189,7 @@ async function handleApi(request, response) {
         miniAppBaseUrl: getMiniAppBaseUrl(),
       },
       storage: {
-        mode: isDatabaseEnabled() ? "database" : "browser",
+        mode: "database",
       },
       analytics: {
         measurementId: process.env.GA_MEASUREMENT_ID ?? "",
@@ -200,7 +200,7 @@ async function handleApi(request, response) {
 
   if (request.method === "GET" && url.pathname === "/api/storage/status") {
     sendJson(response, 200, {
-      mode: isDatabaseEnabled() ? "database" : "browser",
+      mode: "database",
       available: await checkDatabaseAvailable(),
     });
     return;

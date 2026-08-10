@@ -50,7 +50,7 @@ export async function query(text, params = []) {
 }
 
 export async function checkDatabaseAvailable() {
-  if (!isDatabaseEnabled()) return true;
+  if (!isDatabaseEnabled()) return false;
   try {
     await query("select 1");
     return true;

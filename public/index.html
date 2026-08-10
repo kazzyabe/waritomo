@@ -133,21 +133,6 @@
         line-height: 1.35;
       }
 
-      .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        min-height: 32px;
-        padding: 0 10px;
-        border: 1px solid #caead7;
-        border-radius: 8px;
-        background: #f0fbf4;
-        color: #087a39;
-        font-size: 12px;
-        font-weight: 800;
-        white-space: nowrap;
-      }
-
       .top-actions {
         display: flex;
         align-items: center;
@@ -157,13 +142,6 @@
 
       .menu-button {
         background: #ffffff;
-      }
-
-      .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--line);
       }
 
       .home-view,
@@ -949,10 +927,6 @@
           <h1><button id="brand-home" class="brand-button" type="button" aria-label="ホームに戻る">ワリトモ</button></h1>
         </div>
         <div class="top-actions">
-          <div class="status-chip" aria-live="polite">
-            <span class="status-dot"></span>
-            <span id="connection-status">起動中</span>
-          </div>
           <button id="menu-button" class="icon-button menu-button" type="button" aria-label="メニュー" aria-expanded="false" aria-controls="app-menu">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 7h16" />
@@ -1008,7 +982,7 @@
             <div class="group-title">
               <span class="caption">現在のグループ</span>
               <div class="group-name-line">
-                <h2 id="group-name">週末キャンプ</h2>
+                <h2 id="group-name">グループ未作成</h2>
                 <span id="group-status" class="tag complete" hidden>完了</span>
               </div>
               <select id="group-picker" class="group-picker" aria-label="グループ切替"></select>
@@ -1186,38 +1160,26 @@
     <div id="toast" class="toast" role="status" hidden></div>
 
     <script>
-      const STORAGE_KEY = "waritomo-demo-state-v1";
       const colors = ["#06c755", "#2f7de1", "#e66d56", "#9b7a2e", "#6c63c7", "#169c96"];
 
       const initialState = {
-        activeGroupId: "g-demo",
-        groupName: "週末キャンプ",
+        activeGroupId: "",
+        groupName: "グループ未作成",
         activeTab: "expenses",
         inviteToken: "",
-        canManage: true,
+        canManage: false,
         completedAt: null,
         settlementChecks: {},
         groups: [],
-        members: [
-          { id: "kaz", name: "かず", color: "#06c755" },
-          { id: "mai", name: "まい", color: "#2f7de1" },
-          { id: "yu", name: "ゆう", color: "#e66d56" },
-          { id: "ren", name: "れん", color: "#9b7a2e" },
-        ],
-        expenses: [
-          { id: "e1", title: "スーパー", amount: 12840, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T10:15:00+09:00" },
-          { id: "e2", title: "高速代", amount: 7800, payerMemberId: "yu", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T12:30:00+09:00" },
-          { id: "e3", title: "温泉", amount: 4500, payerMemberId: "mai", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-26T17:40:00+09:00" },
-          { id: "e4", title: "朝ごはん", amount: 3600, payerMemberId: "kaz", debtorMemberIds: ["kaz", "mai", "yu"], createdAt: "2026-07-27T08:20:00+09:00" },
-          { id: "e5", title: "ガソリン", amount: 9600, payerMemberId: "ren", debtorMemberIds: ["kaz", "mai", "yu", "ren"], createdAt: "2026-07-27T11:05:00+09:00" },
-        ],
+        members: [],
+        expenses: [],
       };
 
       let state = loadState();
       let settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
       let config = {
         line: { liffId: "", miniAppBaseUrl: "" },
-        storage: { mode: "browser" },
+        storage: { mode: "database" },
         analytics: { measurementId: "" },
       };
       let remoteReady = false;
@@ -1227,6 +1189,7 @@
       let toastTimer;
       let editingExpenseId = "";
       let cloudStorageNotice = "";
+      let appUnavailable = false;
       let inviteContext = parseInviteRoute();
       let invitePreview = null;
       let lineContext = null;
@@ -1254,7 +1217,6 @@
         homeButton: document.getElementById("home-button"),
         homeView: document.getElementById("home-view"),
         detailView: document.getElementById("detail-view"),
-        connectionStatus: document.getElementById("connection-status"),
         groupName: document.getElementById("group-name"),
         groupStatus: document.getElementById("group-status"),
         totalAmount: document.getElementById("total-amount"),
@@ -1296,19 +1258,11 @@
       let currentScreen = "home";
 
       function loadState() {
-        try {
-          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          const normalized = normalizeState(saved);
-          if (normalized) return normalized;
-        } catch {
-          return normalizeState(structuredClone(initialState));
-        }
-        return normalizeState(structuredClone(initialState));
+        return structuredClone(initialState);
       }
 
       function saveState(options = {}) {
         syncActiveGroup(options);
-        if (!remoteReady) localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       }
 
       function goHome() {
@@ -1461,7 +1415,21 @@
       }
 
       function useRemote() {
-        return remoteReady && config.storage?.mode === "database";
+        return config.storage?.mode === "database";
+      }
+
+      function canUseDatabase() {
+        return useRemote() && !appUnavailable;
+      }
+
+      function unavailableMessage() {
+        return "クラウド保存に接続できません。時間をおいて再度お試しください。";
+      }
+
+      function requireDatabaseAvailable() {
+        if (canUseDatabase()) return true;
+        showToast(unavailableMessage());
+        return false;
       }
 
       function yen(value) {
@@ -1582,10 +1550,25 @@
       }
 
       async function checkStorageStatus() {
-        if (config.storage?.mode !== "database") return;
+        if (config.storage?.mode !== "database") {
+          remoteReady = false;
+          appUnavailable = true;
+          cloudStorageNotice = unavailableMessage();
+          state = emptyRemoteState([]);
+          render();
+          return false;
+        }
         const status = await apiJson("/api/storage/status").catch(() => ({ available: false }));
-        cloudStorageNotice = status.available ? "" : "クラウド保存は停止中です";
+        appUnavailable = !status.available;
+        if (appUnavailable) {
+          remoteReady = false;
+          cloudStorageNotice = unavailableMessage();
+          state = emptyRemoteState([]);
+        } else {
+          cloudStorageNotice = "";
+        }
         render();
+        return status.available;
       }
 
       async function loadInvitePreview() {
@@ -1637,6 +1620,7 @@
 
         const data = await apiJson("/api/groups");
         remoteReady = true;
+        appUnavailable = false;
         cloudStorageNotice = "";
 
         if (!data.groups?.length) {
@@ -1692,18 +1676,11 @@
 
         const requestId = ++settlementRequestId;
         try {
-          const data = useRemote()
-            ? await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement`)
-            : await apiJson("/api/settlement/preview", {
-                method: "POST",
-                body: JSON.stringify(settlementInput()),
-              });
+          const data = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement`);
           if (requestId === settlementRequestId) {
             settlement = {
               ...data,
-              confirmations: useRemote()
-                ? data.confirmations ?? []
-                : Object.values(state.settlementChecks ?? {}).filter(Boolean),
+              confirmations: data.confirmations ?? [],
             };
             render();
           }
@@ -1743,8 +1720,9 @@
         const groups = sortGroupSummaries(state.groups);
         const totalAmountAcrossGroups = groups.reduce((sum, group) => sum + Number(group.totalAmount || 0), 0);
         const totalExpenseCount = groups.reduce((sum, group) => sum + Number(group.expenseCount || 0), 0);
+        const creationDisabled = appUnavailable ? "disabled" : "";
         const notice = cloudStorageNotice
-          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>表示中の内容はこの端末の一時データです。</span></div>`
+          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>データの表示・作成・編集は一時的に利用できません。</span></div>`
           : "";
         const invitePanel = inviteContext ? renderInvitePanel() : "";
         const rows = groups
@@ -1776,7 +1754,7 @@
                 <span class="caption">ホーム</span>
                 <h2 id="home-title">最近のグループ</h2>
               </div>
-              <button class="icon-button" type="button" data-action="open-group" aria-label="グループ作成">
+              <button class="icon-button" type="button" data-action="open-group" aria-label="グループ作成" ${creationDisabled}>
                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 5v14" />
                   <path d="M5 12h14" />
@@ -1792,15 +1770,15 @@
           <section class="section">
             <div class="section-head">
               <h2>グループ</h2>
-              <button class="mini-action" type="button" data-action="open-group">作成</button>
+              <button class="mini-action" type="button" data-action="open-group" ${creationDisabled}>作成</button>
             </div>
             <div class="section-body">
               ${
                 rows ||
                 `<div class="empty-state">
                   <strong>グループはまだありません</strong>
-                  <span>最初のグループを作成できます。</span>
-                  <button class="button" type="button" data-action="open-group">グループを作る</button>
+                  <span>${appUnavailable ? "クラウド保存に接続できると表示されます。" : "最初のグループを作成できます。"}</span>
+                  <button class="button" type="button" data-action="open-group" ${creationDisabled}>グループを作る</button>
                 </div>`
               }
             </div>
@@ -2092,6 +2070,7 @@
       }
 
       function openExpenseSheet(expenseId = "") {
+        if (!requireDatabaseAvailable()) return;
         if (useRemote() && !state.activeGroupId) {
           showToast("先にグループを作成してください");
           openGroupSheet();
@@ -2118,6 +2097,7 @@
       }
 
       function openGroupSheet() {
+        if (!requireDatabaseAvailable()) return;
         elements.groupFormError.textContent = "";
         elements.newGroupName.value = "";
         elements.newGroupMembers.value = state.members.length
@@ -2128,6 +2108,7 @@
       }
 
       function openEditGroupSheet() {
+        if (!requireDatabaseAvailable()) return;
         if (!state.activeGroupId) return;
         if (!state.canManage) {
           showToast("グループ名の編集は作成者だけが実行できます");
@@ -2168,6 +2149,7 @@
       }
 
       function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds }) {
+        if (!canUseDatabase()) return unavailableMessage();
         if (useRemote() && !state.activeGroupId) return "先にグループを作成してください";
         if (!title) return "内容を入力してください";
         if (!Number.isFinite(amount) || amount <= 0) return "金額を数字で入力してください（例: 6655）";
@@ -2259,6 +2241,7 @@
       }
 
       async function switchGroup(groupId, options = {}) {
+        if (!requireDatabaseAvailable()) return;
         const openDetail = options.openDetail ?? true;
         if (groupId === state.activeGroupId) {
           if (openDetail) {
@@ -2315,6 +2298,7 @@
       }
 
       async function createGroup(formData) {
+        if (!requireDatabaseAvailable()) return unavailableMessage();
         const groupName = String(formData.get("name") || "").trim();
         const memberNames = parseMemberNames(formData.get("members"));
 
@@ -2379,6 +2363,7 @@
       }
 
       async function addMember(name) {
+        if (!requireDatabaseAvailable()) return;
         const trimmed = name.trim();
         if (!trimmed) return;
 
@@ -2422,6 +2407,7 @@
       }
 
       async function deleteExpense(id) {
+        if (!requireDatabaseAvailable()) return;
         if (useRemote()) {
           const group = await apiJson(
             `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(id)}`,
@@ -2443,6 +2429,7 @@
       }
 
       async function deleteMember(id) {
+        if (!requireDatabaseAvailable()) return;
         if (state.members.length <= 2) return;
 
         if (useRemote()) {
@@ -2474,6 +2461,7 @@
       }
 
       async function claimCurrentMember(id) {
+        if (!requireDatabaseAvailable()) return;
         if (useRemote()) {
           const group = await apiJson(
             `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
@@ -2495,6 +2483,7 @@
       }
 
       async function unlinkCurrentMember(id) {
+        if (!requireDatabaseAvailable()) return;
         if (useRemote()) {
           const result = await apiJson(
             `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
@@ -2600,6 +2589,7 @@
 
       async function joinInvite() {
         if (!inviteContext) return;
+        if (!requireDatabaseAvailable()) return;
         if (!currentUserAuthenticated) {
           showToast("LINEログイン後に参加できます");
           if (window.liff && !liff.isLoggedIn?.()) liff.login({ redirectUri: location.href });
@@ -2628,6 +2618,7 @@
       }
 
       async function saveGroupName(formData) {
+        if (!requireDatabaseAvailable()) return unavailableMessage();
         if (!state.activeGroupId) return "";
 
         const groupName = String(formData.get("name") || "").trim();
@@ -2657,6 +2648,7 @@
       }
 
       async function toggleCurrentGroupCompleted() {
+        if (!requireDatabaseAvailable()) return;
         if (!state.activeGroupId || !state.canManage) return;
         const completed = !isCurrentGroupCompleted();
 
@@ -2680,6 +2672,7 @@
       }
 
       async function deleteCurrentGroup() {
+        if (!requireDatabaseAvailable()) return;
         if (!state.activeGroupId) return;
         if (!state.canManage) {
           showToast("グループの削除は作成者だけが実行できます");
@@ -2729,6 +2722,7 @@
       }
 
       async function toggleSettlement(key) {
+        if (!requireDatabaseAvailable()) return;
         const item = (settlement.items ?? []).find((candidate) => settlementItemKey(candidate) === key);
         if (!item) return;
         const checked = !confirmationKeys().has(key);
@@ -2818,35 +2812,36 @@
         initializeAnalytics();
         const session = await refreshSession().catch(() => null);
         currentUserAuthenticated = Boolean(session?.authenticated);
-        await checkStorageStatus();
+        const storageAvailable = await checkStorageStatus();
+        trackInitialPageView();
+        if (!storageAvailable) return;
+
         await loadInvitePreview().catch((error) => {
           cloudStorageNotice = error.message || "招待リンクを確認できませんでした";
           render();
         });
 
         if (!config.line.liffId) {
-          elements.connectionStatus.textContent = "ローカル";
-          trackInitialPageView();
-          if (session?.authenticated) await loadRemoteState().catch(() => {
-            cloudStorageNotice = "クラウド保存は停止中です";
+          await loadRemoteState().catch(() => {
+            appUnavailable = true;
+            cloudStorageNotice = unavailableMessage();
+            state = emptyRemoteState([]);
             render();
           });
           return;
         }
 
         if (!window.liff) {
-          elements.connectionStatus.textContent = "SDK未読込";
-          trackInitialPageView();
           if (session?.authenticated) await loadRemoteState().catch(() => {
-            cloudStorageNotice = "クラウド保存は停止中です";
+            appUnavailable = true;
+            cloudStorageNotice = unavailableMessage();
+            state = emptyRemoteState([]);
             render();
           });
           return;
         }
 
         await liff.init({ liffId: config.line.liffId });
-        elements.connectionStatus.textContent = liff.isInClient() ? "LINE接続" : "ブラウザ";
-        trackInitialPageView();
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile().catch(() => null);
@@ -2855,14 +2850,18 @@
           currentUserAuthenticated = true;
           render();
           await loadRemoteState().catch(() => {
-            cloudStorageNotice = "クラウド保存は停止中です";
+            appUnavailable = true;
+            cloudStorageNotice = unavailableMessage();
+            state = emptyRemoteState([]);
             render();
           });
           return;
         }
 
         if (session?.authenticated) await loadRemoteState().catch(() => {
-          cloudStorageNotice = "クラウド保存は停止中です";
+          appUnavailable = true;
+          cloudStorageNotice = unavailableMessage();
+          state = emptyRemoteState([]);
           render();
         });
       }
@@ -3014,7 +3013,10 @@
       render();
       refreshSettlement();
       initializeMiniApp().catch(() => {
-        elements.connectionStatus.textContent = "確認中";
+        appUnavailable = true;
+        cloudStorageNotice = unavailableMessage();
+        state = emptyRemoteState([]);
+        render();
       });
     </script>
   </body>
