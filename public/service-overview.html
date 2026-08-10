@@ -518,9 +518,22 @@
       }
 
       footer {
+        display: grid;
+        gap: 8px;
         padding: 0 0 34px;
         color: var(--muted);
         font-size: 13px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .footer-links a {
+        color: var(--muted);
+        text-decoration: none;
       }
 
       @media (max-width: 860px) {
@@ -586,6 +599,7 @@
         <a href="#how-to-use">使い方</a>
         <a href="#business">事業内容</a>
         <a href="/privacy">プライバシー</a>
+        <a href="/terms">利用規約</a>
         <a href="/support">サポート</a>
       </nav>
     </header>
@@ -701,6 +715,8 @@
           <h3>基本情報</h3>
           <p>サービス名: ワリトモ</p>
           <p>提供者: Plus Insight株式会社</p>
+          <p>所在地: 東京都千代田区神田和泉町1番地6-16ヤマトビル405</p>
+          <p>連絡先: <a href="tel:0365552793">0365552793</a></p>
           <p>提供形態: LINEミニアプリ</p>
           <p>利用料金: 無料</p>
           <p>取り扱う情報: LINEログインにより取得するユーザー識別子、表示名、プロフィール画像URL、ユーザーが入力するグループ名、メンバー名、支払い内容、金額、清算状況</p>
@@ -712,13 +728,21 @@
         <div class="final-cta">
           <div>
             <h2>ワリトモをLINEで開く</h2>
-            <p>QRコードをスマートフォンで読み取るか、ページ上部のボタンから審査用LINEミニアプリを起動できます。</p>
+            <p>QRコードをスマートフォンで読み取るか、ページ上部のボタンからLINEミニアプリを起動できます。</p>
           </div>
           <img src="/miniapp-production-qr.png" alt="ワリトモ本番ミニアプリURLのQRコード" />
         </div>
       </section>
     </main>
 
-    <footer>© 2026 Plus Insight株式会社</footer>
+    <footer>
+      <nav class="footer-links" aria-label="フッター関連ページ">
+        <a href="/service-overview">サービス概要</a>
+        <a href="/privacy">プライバシーポリシー</a>
+        <a href="/terms">利用規約</a>
+        <a href="/support">サポート</a>
+      </nav>
+      <span>© 2026 Plus Insight株式会社</span>
+    </footer>
   </body>
 </html>

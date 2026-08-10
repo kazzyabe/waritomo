@@ -155,6 +155,10 @@
         flex: 0 0 auto;
       }
 
+      .menu-button {
+        background: #ffffff;
+      }
+
       .status-dot {
         width: 8px;
         height: 8px;
@@ -389,6 +393,84 @@
         stroke-linecap: round;
         stroke-linejoin: round;
         fill: none;
+      }
+
+      .app-menu {
+        position: fixed;
+        inset: 0;
+        z-index: 35;
+        padding: calc(max(env(safe-area-inset-top), 10px) + 54px) 16px 16px;
+        background: rgba(22, 33, 38, 0.2);
+      }
+
+      .app-menu-panel {
+        display: grid;
+        gap: 12px;
+        width: min(100%, 448px);
+        margin: 0 auto;
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 18px 48px rgba(22, 33, 38, 0.18);
+      }
+
+      .app-menu-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .app-menu-links {
+        display: grid;
+        gap: 8px;
+      }
+
+      .app-menu-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        padding: 0 12px;
+        border: 1px solid #e5edf1;
+        border-radius: 8px;
+        background: #f7fafb;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 850;
+        text-decoration: none;
+      }
+
+      .app-menu-link::after {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-top: 2px solid currentColor;
+        border-right: 2px solid currentColor;
+        opacity: 0.44;
+        transform: rotate(45deg);
+      }
+
+      .app-menu-info {
+        display: grid;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+
+      .app-menu-info-row {
+        display: grid;
+        gap: 2px;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 750;
+        line-height: 1.45;
+      }
+
+      .app-menu-info-row a {
+        color: var(--line-dark);
+        text-decoration: none;
       }
 
       .member-strip {
@@ -871,8 +953,52 @@
             <span class="status-dot"></span>
             <span id="connection-status">起動中</span>
           </div>
+          <button id="menu-button" class="icon-button menu-button" type="button" aria-label="メニュー" aria-expanded="false" aria-controls="app-menu">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16" />
+              <path d="M4 12h16" />
+              <path d="M4 17h16" />
+            </svg>
+          </button>
         </div>
       </header>
+
+      <div id="app-menu" class="app-menu" hidden>
+        <div class="app-menu-panel" role="dialog" aria-modal="true" aria-labelledby="app-menu-title">
+          <div class="app-menu-head">
+            <div>
+              <span class="caption">メニュー</span>
+              <h2 id="app-menu-title">ワリトモ</h2>
+            </div>
+            <button class="icon-button" type="button" data-close-menu aria-label="メニューを閉じる">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          </div>
+          <nav class="app-menu-links" aria-label="アプリメニュー">
+            <a class="app-menu-link" href="/service-overview">サービス概要</a>
+            <a class="app-menu-link" href="/privacy">プライバシーポリシー</a>
+            <a class="app-menu-link" href="/terms">利用規約</a>
+            <a class="app-menu-link" href="/support">サポート・お問い合わせ</a>
+          </nav>
+          <div class="app-menu-info" aria-label="運営情報">
+            <div class="app-menu-info-row">
+              <span class="caption">運営会社</span>
+              <strong>Plus Insight株式会社</strong>
+            </div>
+            <div class="app-menu-info-row">
+              <span class="caption">所在地</span>
+              <span>東京都千代田区神田和泉町1番地6-16ヤマトビル405</span>
+            </div>
+            <div class="app-menu-info-row">
+              <span class="caption">連絡先</span>
+              <a href="tel:0365552793">0365552793</a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <section id="home-view" class="home-view"></section>
 
@@ -1144,6 +1270,8 @@
         settlementView: document.getElementById("settlement-view"),
         membersView: document.getElementById("members-view"),
         groupPicker: document.getElementById("group-picker"),
+        menuButton: document.getElementById("menu-button"),
+        appMenu: document.getElementById("app-menu"),
         sheet: document.getElementById("expense-sheet"),
         groupSheet: document.getElementById("group-sheet"),
         editGroupSheet: document.getElementById("edit-group-sheet"),
@@ -1188,6 +1316,17 @@
         currentScreen = "home";
         render();
         trackEvent("view_home");
+      }
+
+      function openAppMenu() {
+        elements.appMenu.hidden = false;
+        elements.menuButton.setAttribute("aria-expanded", "true");
+        trackEvent("menu_opened");
+      }
+
+      function closeAppMenu() {
+        elements.appMenu.hidden = true;
+        elements.menuButton.setAttribute("aria-expanded", "false");
       }
 
       function normalizeMemberLinks(members, options = {}) {
@@ -2807,6 +2946,13 @@
       });
       elements.homeButton.addEventListener("click", goHome);
       elements.brandHome.addEventListener("click", goHome);
+      elements.menuButton.addEventListener("click", () => {
+        if (elements.appMenu.hidden) openAppMenu();
+        else closeAppMenu();
+      });
+      elements.appMenu.addEventListener("click", (event) => {
+        if (event.target === elements.appMenu || event.target.closest("[data-close-menu]")) closeAppMenu();
+      });
       document.getElementById("invite-button").addEventListener("click", () => copyInvite().catch(() => showToast("コピーできませんでした")));
       document.getElementById("share-button").addEventListener("click", () => shareSettlement().catch(() => showToast("共有できませんでした")));
       elements.groupPicker.addEventListener("change", (event) => {
@@ -2859,7 +3005,10 @@
       });
 
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeAllSheets();
+        if (event.key === "Escape") {
+          closeAllSheets();
+          closeAppMenu();
+        }
       });
 
       render();

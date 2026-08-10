@@ -121,10 +121,47 @@
         font-size: 14px;
       }
 
+      .operator-summary {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f8fafb;
+      }
+
+      .operator-summary p {
+        margin: 0;
+      }
+
+      .label {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .value {
+        display: block;
+        font-weight: 700;
+      }
+
       footer {
+        display: grid;
+        gap: 8px;
         padding: 0 0 32px;
         color: var(--muted);
         font-size: 13px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .footer-links a {
+        color: var(--muted);
+        text-decoration: none;
       }
     </style>
   </head>
@@ -146,10 +183,23 @@
       <article>
         <h1>プライバシーポリシー</h1>
         <p class="lead">Plus Insight株式会社（以下「当社」）は、当社が提供するLINEミニアプリ「ワリトモ」における個人情報等の取り扱いについて、以下のとおり定めます。</p>
-        <p class="updated">制定日: 2026年7月26日 / 最終更新日: 2026年8月9日</p>
+        <p class="updated">制定日: 2026年7月26日 / 最終更新日: 2026年8月10日</p>
 
         <h2>サービス提供者</h2>
-        <p>本サービスの提供者は、Plus Insight株式会社です。</p>
+        <div class="operator-summary">
+          <p>
+            <span class="label">運営会社</span>
+            <span class="value">Plus Insight株式会社</span>
+          </p>
+          <p>
+            <span class="label">所在地</span>
+            <span class="value">東京都千代田区神田和泉町1番地6-16ヤマトビル405</span>
+          </p>
+          <p>
+            <span class="label">連絡先</span>
+            <span class="value"><a href="tel:0365552793">0365552793</a></span>
+          </p>
+        </div>
 
         <h2>取得する情報</h2>
         <p>本サービスでは、以下の情報を取得または保存することがあります。</p>
@@ -195,6 +245,14 @@
       </article>
     </main>
 
-    <footer>© 2026 Plus Insight株式会社</footer>
+    <footer>
+      <nav class="footer-links" aria-label="フッター関連ページ">
+        <a href="/service-overview">サービス概要</a>
+        <a href="/privacy">プライバシーポリシー</a>
+        <a href="/terms">利用規約</a>
+        <a href="/support">サポート</a>
+      </nav>
+      <span>© 2026 Plus Insight株式会社</span>
+    </footer>
   </body>
 </html>

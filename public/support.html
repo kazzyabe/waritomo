@@ -145,9 +145,22 @@
       }
 
       footer {
+        display: grid;
+        gap: 8px;
         padding: 0 0 32px;
         color: var(--muted);
         font-size: 13px;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .footer-links a {
+        color: var(--muted);
+        text-decoration: none;
       }
     </style>
   </head>
@@ -169,18 +182,26 @@
       <article>
         <h1>サポート</h1>
         <p class="lead">Plus Insight株式会社が提供するLINEミニアプリ「ワリトモ」の使い方、不具合、データ削除、その他のお問い合わせはこちらからご連絡ください。</p>
-        <p class="updated">最終更新日: 2026年7月26日</p>
+        <p class="updated">最終更新日: 2026年8月10日</p>
 
         <h2>サービス提供者</h2>
         <ul class="contact-list">
           <li>
-            <span class="label">提供者</span>
+            <span class="label">運営会社</span>
             <span class="value">Plus Insight株式会社</span>
+          </li>
+          <li>
+            <span class="label">所在地</span>
+            <span class="value">東京都千代田区神田和泉町1番地6-16ヤマトビル405</span>
           </li>
         </ul>
 
         <h2>お問い合わせ先</h2>
         <ul class="contact-list">
+          <li>
+            <span class="label">電話番号</span>
+            <span class="value"><a href="tel:0365552793">0365552793</a></span>
+          </li>
           <li>
             <span class="label">メールアドレス</span>
             <span class="value"><a href="mailto:contact@plusinsight.co.jp">contact@plusinsight.co.jp</a></span>
@@ -207,6 +228,14 @@
       </article>
     </main>
 
-    <footer>© 2026 Plus Insight株式会社</footer>
+    <footer>
+      <nav class="footer-links" aria-label="フッター関連ページ">
+        <a href="/service-overview">サービス概要</a>
+        <a href="/privacy">プライバシーポリシー</a>
+        <a href="/terms">利用規約</a>
+        <a href="/support">サポート</a>
+      </nav>
+      <span>© 2026 Plus Insight株式会社</span>
+    </footer>
   </body>
 </html>
