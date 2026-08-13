@@ -220,8 +220,18 @@
 
       .home-ad {
         display: grid;
+        gap: 4px;
         justify-items: center;
         padding: 2px 0 0;
+      }
+
+      .ad-label {
+        width: 300px;
+        max-width: 100%;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
       }
 
       .yads-slot {
@@ -989,8 +999,18 @@
       </div>
 
       <section id="home-view" class="home-view"></section>
-      <section id="home-ad" class="home-ad" aria-label="広告" hidden>
+      <section id="home-ad" class="home-ad" aria-label="広告">
+        <div class="ad-label">広告</div>
         <div id="yads89397_1065339" class="yads-slot"></div>
+        <script>
+          (function (window) {
+            window.YJ_YADS = window.YJ_YADS || { tasks: [] };
+            window.YJ_YADS.tasks.push({
+              yads_ad_ds: "89397_1065339",
+              yads_parent_element: "yads89397_1065339",
+            });
+          })(window);
+        </script>
       </section>
 
       <section id="detail-view" class="detail-view" hidden>
@@ -1211,7 +1231,6 @@
       let invitePreview = null;
       let lineContext = null;
       let canSendToCurrentChat = false;
-      let homeAdRequested = false;
 
       const yenFormatter = new Intl.NumberFormat("ja-JP", {
         style: "currency",
@@ -1716,7 +1735,6 @@
         elements.detailView.hidden = currentScreen !== "detail";
         elements.homeButton.hidden = currentScreen === "home";
         renderHomeView();
-        requestHomeAd();
         elements.groupName.textContent = state.groupName;
         elements.groupStatus.hidden = !completed;
         elements.totalAmount.textContent = yen(totalExpenses());
@@ -1735,18 +1753,6 @@
         renderSettlementView();
         renderMembersView();
         renderExpenseFormOptions();
-      }
-
-      function requestHomeAd() {
-        if (homeAdRequested || elements.homeAd.hidden) return;
-        const slot = document.getElementById("yads89397_1065339");
-        if (!slot) return;
-        homeAdRequested = true;
-        window.YJ_YADS = window.YJ_YADS || { tasks: [] };
-        window.YJ_YADS.tasks.push({
-          yads_ad_ds: "89397_1065339",
-          yads_parent_element: "yads89397_1065339",
-        });
       }
 
       function renderHomeView() {
