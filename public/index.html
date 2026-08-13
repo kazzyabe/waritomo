@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>ワリトモ</title>
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script async src="https://yads.c.yimg.jp/js/yads-async.js"></script>
     <style>
       :root {
         color-scheme: light;
@@ -215,6 +216,19 @@
         display: flex;
         justify-content: flex-end;
         gap: 6px;
+      }
+
+      .home-ad {
+        display: grid;
+        justify-items: center;
+        padding: 2px 0 0;
+      }
+
+      .yads-slot {
+        width: 300px;
+        max-width: 100%;
+        min-height: 250px;
+        overflow: hidden;
       }
 
       .notice {
@@ -975,6 +989,9 @@
       </div>
 
       <section id="home-view" class="home-view"></section>
+      <section id="home-ad" class="home-ad" aria-label="広告" hidden>
+        <div id="yads89397_1065339" class="yads-slot"></div>
+      </section>
 
       <section id="detail-view" class="detail-view" hidden>
         <section class="group-panel" aria-labelledby="group-name">
@@ -1194,6 +1211,7 @@
       let invitePreview = null;
       let lineContext = null;
       let canSendToCurrentChat = false;
+      let homeAdRequested = false;
 
       const yenFormatter = new Intl.NumberFormat("ja-JP", {
         style: "currency",
@@ -1216,6 +1234,7 @@
       const elements = {
         homeButton: document.getElementById("home-button"),
         homeView: document.getElementById("home-view"),
+        homeAd: document.getElementById("home-ad"),
         detailView: document.getElementById("detail-view"),
         groupName: document.getElementById("group-name"),
         groupStatus: document.getElementById("group-status"),
@@ -1693,9 +1712,11 @@
         if (!state.activeGroupId) currentScreen = "home";
         const completed = isCurrentGroupCompleted();
         elements.homeView.hidden = currentScreen !== "home";
+        elements.homeAd.hidden = currentScreen !== "home";
         elements.detailView.hidden = currentScreen !== "detail";
         elements.homeButton.hidden = currentScreen === "home";
         renderHomeView();
+        requestHomeAd();
         elements.groupName.textContent = state.groupName;
         elements.groupStatus.hidden = !completed;
         elements.totalAmount.textContent = yen(totalExpenses());
@@ -1714,6 +1735,18 @@
         renderSettlementView();
         renderMembersView();
         renderExpenseFormOptions();
+      }
+
+      function requestHomeAd() {
+        if (homeAdRequested || elements.homeAd.hidden) return;
+        const slot = document.getElementById("yads89397_1065339");
+        if (!slot) return;
+        homeAdRequested = true;
+        window.YJ_YADS = window.YJ_YADS || { tasks: [] };
+        window.YJ_YADS.tasks.push({
+          yads_ad_ds: "89397_1065339",
+          yads_parent_element: "yads89397_1065339",
+        });
       }
 
       function renderHomeView() {
