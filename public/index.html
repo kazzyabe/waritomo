@@ -50,6 +50,15 @@
           #eef3f6;
       }
 
+      body.interstitial-open {
+        overflow: hidden;
+      }
+
+      body.interstitial-open .home-ad,
+      body.interstitial-open .expense-ad-row {
+        visibility: hidden;
+      }
+
       button,
       input,
       select {
@@ -921,6 +930,58 @@
         padding: 16px;
       }
 
+      .interstitial-ad {
+        position: fixed;
+        inset: 0;
+        z-index: 45;
+        display: grid;
+        place-items: center;
+        padding: max(env(safe-area-inset-top), 16px) 16px max(env(safe-area-inset-bottom), 16px);
+        background: rgba(22, 33, 38, 0.68);
+      }
+
+      .interstitial-shell {
+        display: grid;
+        gap: 10px;
+        width: min(100%, 420px);
+        max-height: 100%;
+      }
+
+      .interstitial-close {
+        justify-self: end;
+        width: 44px;
+        height: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+      }
+
+      .interstitial-panel {
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+        padding: 12px;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 22px 56px rgba(0, 0, 0, 0.28);
+      }
+
+      .interstitial-ad-label,
+      .interstitial-yads-slot {
+        width: min(100%, 360px);
+      }
+
+      .interstitial-yads-slot {
+        min-height: min(68vh, 540px);
+        overflow: hidden;
+      }
+
+      .interstitial-yads-slot:empty {
+        border-radius: 8px;
+        background: #f7fafb;
+      }
+
       .error-text {
         min-height: 18px;
         color: #c84932;
@@ -1225,9 +1286,26 @@
     </div>
 
     <div id="toast" class="toast" role="status" hidden></div>
+    <div id="expense-interstitial-ad" class="interstitial-ad" role="dialog" aria-modal="true" aria-label="広告" hidden>
+      <div class="interstitial-shell">
+        <button class="icon-button interstitial-close" type="button" data-close-interstitial-ad aria-label="広告を閉じる">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+        <div class="interstitial-panel">
+          <div class="ad-label interstitial-ad-label">広告</div>
+          <div id="yads74114_1065349" class="interstitial-yads-slot"></div>
+        </div>
+      </div>
+    </div>
 
     <script>
       const colors = ["#06c755", "#2f7de1", "#e66d56", "#9b7a2e", "#6c63c7", "#169c96"];
+      const expenseInterstitialCountKey = "waritomo:expense-interstitial-count";
+      const expenseInterstitialShownKey = "waritomo:expense-interstitial-shown";
+      const expenseInterstitialThreshold = 3;
 
       const initialState = {
         activeGroupId: "",
@@ -1321,6 +1399,7 @@
         editGroupName: document.getElementById("edit-group-name"),
         editGroupFormError: document.getElementById("edit-group-form-error"),
         brandHome: document.getElementById("brand-home"),
+        expenseInterstitialAd: document.getElementById("expense-interstitial-ad"),
         toast: document.getElementById("toast"),
       };
       let currentScreen = "home";
@@ -2009,6 +2088,60 @@
         document.head.appendChild(script);
       }
 
+      function recordExpenseCreatedForInterstitial() {
+        if (readSessionValue(expenseInterstitialShownKey) === "true") return;
+        const previousCount = Number.parseInt(readSessionValue(expenseInterstitialCountKey) || "0", 10);
+        const nextCount = (Number.isFinite(previousCount) ? previousCount : 0) + 1;
+        writeSessionValue(expenseInterstitialCountKey, String(nextCount));
+        if (nextCount < expenseInterstitialThreshold) return;
+
+        writeSessionValue(expenseInterstitialShownKey, "true");
+        window.setTimeout(showExpenseInterstitialAd, 650);
+      }
+
+      function showExpenseInterstitialAd() {
+        if (!elements.expenseInterstitialAd) return;
+        elements.expenseInterstitialAd.hidden = false;
+        document.body.classList.add("interstitial-open");
+        requestExpenseInterstitialAd();
+        trackEvent("interstitial_ad_shown", { trigger: "expense_created" });
+      }
+
+      function closeExpenseInterstitialAd() {
+        if (!elements.expenseInterstitialAd || elements.expenseInterstitialAd.hidden) return;
+        elements.expenseInterstitialAd.hidden = true;
+        document.body.classList.remove("interstitial-open");
+        trackEvent("interstitial_ad_closed");
+      }
+
+      function requestExpenseInterstitialAd() {
+        const slot = document.getElementById("yads74114_1065349");
+        if (!slot || slot.dataset.yadsRequested === "true") return;
+        slot.dataset.yadsRequested = "true";
+        window.YJ_YADS = window.YJ_YADS || { tasks: [] };
+        window.YJ_YADS.tasks.push({
+          yads_ad_ds: "74114_1065349",
+          yads_parent_element: "yads74114_1065349",
+        });
+        reloadYadsScript(slot);
+      }
+
+      function readSessionValue(key) {
+        try {
+          return window.sessionStorage?.getItem(key) ?? "";
+        } catch {
+          return "";
+        }
+      }
+
+      function writeSessionValue(key, value) {
+        try {
+          window.sessionStorage?.setItem(key, value);
+        } catch {
+          // Ignore storage failures and keep the app flow moving.
+        }
+      }
+
       function renderSettlementView() {
         const checkedKeys = confirmationKeys();
         const itemRows = (settlement.items ?? [])
@@ -2283,6 +2416,7 @@
             debtor_count: debtorMemberIds.length,
           });
           showToast("支払いを保存しました");
+          recordExpenseCreatedForInterstitial();
           return "";
         }
 
@@ -2304,6 +2438,7 @@
           debtor_count: debtorMemberIds.length,
         });
         showToast("支払いを追加しました");
+        recordExpenseCreatedForInterstitial();
         return "";
       }
 
@@ -2977,6 +3112,11 @@
       });
 
       document.body.addEventListener("click", async (event) => {
+        if (event.target.closest("[data-close-interstitial-ad]")) {
+          closeExpenseInterstitialAd();
+          return;
+        }
+
         const openGroupCard = event.target.closest("[data-open-group]");
         if (openGroupCard) {
           await switchGroup(openGroupCard.dataset.openGroup, { openDetail: true }).catch((error) => showToast(error.message));
@@ -3106,6 +3246,7 @@
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
+          closeExpenseInterstitialAd();
           closeAllSheets();
           closeAppMenu();
         }
