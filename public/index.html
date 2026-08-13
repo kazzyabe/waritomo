@@ -957,29 +957,10 @@
         color: var(--ink);
       }
 
-      .interstitial-panel {
-        display: grid;
-        gap: 8px;
-        justify-items: center;
-        padding: 12px;
-        border-radius: 8px;
-        background: #ffffff;
-        box-shadow: 0 22px 56px rgba(0, 0, 0, 0.28);
-      }
-
-      .interstitial-ad-label,
       .interstitial-yads-slot {
-        width: min(100%, 360px);
-      }
-
-      .interstitial-yads-slot {
+        width: 100%;
         min-height: min(68vh, 540px);
         overflow: hidden;
-      }
-
-      .interstitial-yads-slot:empty {
-        border-radius: 8px;
-        background: #f7fafb;
       }
 
       .error-text {
@@ -1294,10 +1275,7 @@
             <path d="m6 6 12 12" />
           </svg>
         </button>
-        <div class="interstitial-panel">
-          <div class="ad-label interstitial-ad-label">広告</div>
-          <div id="yads74114_1065349" class="interstitial-yads-slot"></div>
-        </div>
+        <div id="yads74114_1065349" class="interstitial-yads-slot"></div>
       </div>
     </div>
 
