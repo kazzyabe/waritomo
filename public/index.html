@@ -647,6 +647,31 @@
         grid-template-columns: 36px 1fr auto;
       }
 
+      .expense-ad-row {
+        display: grid;
+        justify-items: center;
+        gap: 4px;
+        min-height: 128px;
+        padding: 12px 14px;
+        border-top: 1px solid #edf2f4;
+        background: #ffffff;
+      }
+
+      .expense-ad-label,
+      .expense-yads-slot {
+        width: min(100%, 320px);
+      }
+
+      .expense-yads-slot {
+        min-height: 100px;
+        overflow: hidden;
+      }
+
+      .expense-yads-slot:empty {
+        border-radius: 8px;
+        background: #f7fafb;
+      }
+
       .settlement-row {
         grid-template-columns: 1fr auto;
       }
@@ -1906,7 +1931,7 @@
       function renderExpensesView() {
         const completed = isCurrentGroupCompleted();
         const rows = state.expenses
-          .map((expense) => {
+          .map((expense, index) => {
             const payer = memberById(expense.payerMemberId);
             const participantLabel =
               expense.debtorMemberIds.length === state.members.length
@@ -1918,7 +1943,7 @@
                     <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
                     <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
                   `;
-            return `
+            const expenseRow = `
               <div class="expense-row">
                 <span class="avatar small" style="background:${payer?.color ?? colors[0]}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
                 <div class="row-main">
@@ -1934,6 +1959,7 @@
                   ${actionButtons ? `<div class="inline-actions">${actionButtons}</div>` : ""}
                 </div>
               </div>`;
+            return `${expenseRow}${index === 1 && state.expenses.length >= 3 ? renderExpenseListAd() : ""}`;
           })
           .join("");
 
@@ -1950,6 +1976,27 @@
               }
             </div>
           </div>`;
+        requestExpenseListAd();
+      }
+
+      function renderExpenseListAd() {
+        return `
+          <div class="expense-ad-row" aria-label="広告">
+            <div class="ad-label expense-ad-label">広告</div>
+            <div id="yads90255_1065348" class="expense-yads-slot"></div>
+          </div>`;
+      }
+
+      function requestExpenseListAd() {
+        const slot = document.getElementById("yads90255_1065348");
+        if (!slot || elements.expensesView.hidden || currentScreen !== "detail" || state.activeTab !== "expenses") return;
+        if (slot.dataset.yadsRequested === "true") return;
+        slot.dataset.yadsRequested = "true";
+        window.YJ_YADS = window.YJ_YADS || { tasks: [] };
+        window.YJ_YADS.tasks.push({
+          yads_ad_ds: "90255_1065348",
+          yads_parent_element: "yads90255_1065348",
+        });
       }
 
       function renderSettlementView() {
