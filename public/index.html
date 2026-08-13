@@ -1339,6 +1339,8 @@
       let invitePreview = null;
       let lineContext = null;
       let canSendToCurrentChat = false;
+      let expenseInterstitialObserver = null;
+      let expenseInterstitialFallbackTimer = 0;
 
       const yenFormatter = new Intl.NumberFormat("ja-JP", {
         style: "currency",
@@ -2109,6 +2111,8 @@
 
       function closeExpenseInterstitialAd() {
         if (!elements.expenseInterstitialAd || elements.expenseInterstitialAd.hidden) return;
+        cleanupExpenseInterstitialWatch();
+        resetExpenseInterstitialSlot();
         elements.expenseInterstitialAd.hidden = true;
         document.body.classList.remove("interstitial-open");
         trackEvent("interstitial_ad_closed");
@@ -2118,12 +2122,51 @@
         const slot = document.getElementById("yads74114_1065349");
         if (!slot || slot.dataset.yadsRequested === "true") return;
         slot.dataset.yadsRequested = "true";
+        slot.dataset.yadsHadContent = slot.childElementCount > 0 ? "true" : "false";
+        watchExpenseInterstitialSlot(slot);
         window.YJ_YADS = window.YJ_YADS || { tasks: [] };
         window.YJ_YADS.tasks.push({
           yads_ad_ds: "74114_1065349",
           yads_parent_element: "yads74114_1065349",
         });
         reloadYadsScript(slot);
+      }
+
+      function watchExpenseInterstitialSlot(slot) {
+        cleanupExpenseInterstitialWatch();
+        expenseInterstitialFallbackTimer = window.setTimeout(() => {
+          if (!slot.childElementCount && !elements.expenseInterstitialAd.hidden) closeExpenseInterstitialAd();
+        }, 7000);
+        expenseInterstitialObserver = new MutationObserver(() => {
+          if (slot.childElementCount > 0) {
+            slot.dataset.yadsHadContent = "true";
+            return;
+          }
+          if (slot.dataset.yadsHadContent !== "true") return;
+          window.setTimeout(() => {
+            if (!slot.childElementCount && !elements.expenseInterstitialAd.hidden) closeExpenseInterstitialAd();
+          }, 120);
+        });
+        expenseInterstitialObserver.observe(slot, { childList: true });
+      }
+
+      function cleanupExpenseInterstitialWatch() {
+        if (expenseInterstitialObserver) {
+          expenseInterstitialObserver.disconnect();
+          expenseInterstitialObserver = null;
+        }
+        if (expenseInterstitialFallbackTimer) {
+          window.clearTimeout(expenseInterstitialFallbackTimer);
+          expenseInterstitialFallbackTimer = 0;
+        }
+      }
+
+      function resetExpenseInterstitialSlot() {
+        const slot = document.getElementById("yads74114_1065349");
+        if (!slot) return;
+        slot.innerHTML = "";
+        delete slot.dataset.yadsRequested;
+        delete slot.dataset.yadsHadContent;
       }
 
       function readSessionValue(key) {
