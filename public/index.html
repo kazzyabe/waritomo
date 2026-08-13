@@ -1997,6 +1997,16 @@
           yads_ad_ds: "90255_1065348",
           yads_parent_element: "yads90255_1065348",
         });
+        reloadYadsScript(slot);
+      }
+
+      function reloadYadsScript(slot) {
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = "https://yads.c.yimg.jp/js/yads-async.js";
+        script.dataset.yadsSlot = slot.id;
+        script.addEventListener("load", () => script.remove(), { once: true });
+        document.head.appendChild(script);
       }
 
       function renderSettlementView() {
