@@ -62,8 +62,17 @@ function cleanInviteToken(value) {
   return token;
 }
 
+// `?? []` only covers null and undefined. A string or an object gets past it
+// and dies on .map, which is a TypeError and a logged 500 for a plain bad
+// request — the shape readJson rejects at the top level but cannot see inside.
+function requireArrayInput(value, label) {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) throw new StoreError(400, "invalid_input", `${label}の形式が正しくありません`);
+  return value;
+}
+
 function cleanMemberNames(values) {
-  const names = [...new Set((values ?? []).map((value) => cleanName(value, "メンバー名")))];
+  const names = [...new Set(requireArrayInput(values, "メンバー").map((value) => cleanName(value, "メンバー名")))];
   if (names.length < 2) {
     throw new StoreError(400, "invalid_input", "メンバーを2人以上入力してください");
   }
@@ -434,6 +443,7 @@ export async function unlinkMember(groupId, memberId, userId) {
 export async function createGroup(user, input) {
   const groupName = cleanName(input.name, "グループ名");
   const memberNames = cleanMemberNames(input.members);
+  const colors = requireArrayInput(input.colors, "色");
 
   return withTransaction(async (client) => {
     const groupId = createId("grp");
@@ -460,7 +470,7 @@ export async function createGroup(user, input) {
           groupId,
           index === 0 ? user.id : null,
           name,
-          cleanColor(input.colors?.[index]),
+          cleanColor(colors[index]),
           index,
         ],
       );
@@ -569,12 +579,13 @@ export async function deleteMember(groupId, memberId, userId) {
     await client.query("delete from expense_debtors where member_id = $1", [memberId]);
 
     // An expense whose only debtor was this member now has none, and an expense
-    // nobody owes anything for cannot be settled. It went out with them.
+    // nobody owes anything for cannot be settled. It went out with them. Not
+    // filtered on deleted_at: a soft-deleted one is the same unsettleable shape
+    // held in reserve, and restoring it would bring the bug back with it.
     await client.query(
       `
         delete from expenses
         where group_id = $1
-          and deleted_at is null
           and not exists (select 1 from expense_debtors where expense_id = expenses.id)
       `,
       [groupId],
@@ -596,7 +607,7 @@ async function validateExpenseInput(client, groupId, input) {
   const title = cleanName(input.title, "内容");
   const amount = cleanAmount(input.amount);
   const payerMemberId = String(input.payerMemberId ?? "");
-  const debtorMemberIds = [...new Set((input.debtorMemberIds ?? []).map(String))];
+  const debtorMemberIds = [...new Set(requireArrayInput(input.debtorMemberIds, "割り勘する人").map(String))];
 
   if (debtorMemberIds.length === 0) {
     throw new StoreError(400, "invalid_input", "割り勘する人を選んでください");

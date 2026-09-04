@@ -248,8 +248,8 @@ async function readJson(request) {
   }
 
   // `null`, `[]` and `7` are all valid JSON, and every route here reads fields
-  // off what it gets back. Rejecting them once is the difference between a 400
-  // and a 500 with a stack trace on whichever route was missed.
+  // off what it gets back. This is the top level only — the shape of each field
+  // is the store's to check, and it does.
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new StoreError(400, "invalid_json", "リクエストの形式が正しくありません");
   }

@@ -142,6 +142,44 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     assert.ok(saved.expenses.some((expense) => expense.title === "ぎりぎり"));
   });
 
+  test("a field that should be a list but is not is a 400, not a crash", async () => {
+    // `?? []` only guards null and undefined; a string or object sails past it
+    // and dies on .map. readJson rejects a non-object body but cannot see the
+    // shape of the fields inside it, so the store has to check its own.
+    const user = await users.upsertDatabaseLineUser({
+      sub: `Utest_shape_${process.pid}`,
+      name: "幹事",
+      picture: null,
+    });
+
+    for (const members of ["abc", 5, {}, true]) {
+      await assert.rejects(
+        store.createGroup(user, { name: "x", members }),
+        (error) => error instanceof store.StoreError && error.statusCode === 400,
+        `members=${JSON.stringify(members)} must be a 400`,
+      );
+    }
+
+    await assert.rejects(
+      store.createGroup(user, { name: "x", members: ["幹事", "さき"], colors: "abc" }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+
+    const { user: owner, group, members } = await freshGroup();
+    for (const debtorMemberIds of ["abc", {}, 5, true]) {
+      await assert.rejects(
+        store.addExpense(group.id, owner.id, {
+          title: "テスト",
+          amount: "1000",
+          payerMemberId: members[0].id,
+          debtorMemberIds,
+        }),
+        (error) => error instanceof store.StoreError && error.statusCode === 400,
+        `debtorMemberIds=${JSON.stringify(debtorMemberIds)} must be a 400`,
+      );
+    }
+  });
+
   test("a color that is not a color is refused and the group is not written", async () => {
     const user = await users.upsertDatabaseLineUser({
       sub: `Utest_color_${process.pid}`,
