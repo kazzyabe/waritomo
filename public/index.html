@@ -1660,6 +1660,7 @@
       let editingExpenseId = "";
       let cloudStorageNotice = "";
       let appUnavailable = false;
+      let liffInitialized = false;
       // Why the app is unusable, not just that it is. Waiting fixes a storage
       // outage; only a fresh login fixes a sign-in failure, and telling someone
       // to wait for the cloud when their session is the problem strands them.
@@ -3420,12 +3421,16 @@
       // while LIFF still believes the user is signed in.
       // Inside the LINE client the user is signed in automatically and
       // liff.login() is a documented no-op, so there is nothing to offer there
-      // — reopening the mini app is what gets a fresh token. Every liff.* call
-      // also throws if liff.init() never finished, which is exactly the state
-      // this recovery path is reached in.
+      // — reopening the mini app is what gets a fresh token.
       function canRestartLineLogin() {
+        // liff.init() has to have succeeded: every other liff.* call throws
+        // until it has, and login cannot be started through an SDK that never
+        // came up. When it did not, reopening the app is the only way back,
+        // which is what signInAgainMessage() says.
+        if (!window.liff || !config.line?.liffId || !liffInitialized) return false;
+
         try {
-          return Boolean(window.liff && config.line?.liffId) && !liff.isInClient?.();
+          return !liff.isInClient();
         } catch (error) {
           console.error("could not check the LINE login state", error);
           return false;
@@ -3725,6 +3730,16 @@
         });
 
         if (!config.line.liffId) {
+          // Without a LIFF id there is no way to sign in here, so an
+          // unauthenticated visitor is a sign-in problem, not a storage one.
+          if (!session?.authenticated) {
+            markAppUnavailable("signin");
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
           await loadRemoteState().catch(() => {
             markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
@@ -3746,10 +3761,16 @@
 
         const liffReady = await liff
           .init({ liffId: config.line.liffId })
-          .then(() => true, (error) => {
-            console.error("liff.init failed", error);
-            return false;
-          });
+          .then(
+            () => {
+              liffInitialized = true;
+              return true;
+            },
+            (error) => {
+              console.error("liff.init failed", error);
+              return false;
+            },
+          );
 
         if (!liffReady) {
           // A blocked SDK, a rotated LIFF id, or a hiccup reaching LINE. None of

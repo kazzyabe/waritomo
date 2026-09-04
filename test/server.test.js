@@ -9,9 +9,10 @@ delete process.env.DATABASE_URL;
 delete process.env.APP_ENV;
 delete process.env.NODE_ENV;
 
-const { handleRequest, respondToError } = await import("../src/server.js");
+const { handleRequest, respondToError, settlementInputFromGroup } = await import("../src/server.js");
 const { StoreError } = await import("../src/group-store.js");
 const { LineAuthError } = await import("../src/line-auth.js");
+const { calculateSettlement } = await import("../src/settlement.js");
 
 let server;
 let origin;
@@ -397,6 +398,27 @@ test("a malformed path segment does not break routing", async () => {
   // the undecodable segment never reaches the top-level handler as a URIError.
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error, "database_not_configured");
+});
+
+test("a group carrying an unsettleable expense still settles", () => {
+  // Removing a member used to strip an expense's last debtor and leave the
+  // expense behind. calculateSettlement refuses that, and with the message now
+  // redacted the group's settlement was a permanent, unexplained 500.
+  const group = {
+    members: [{ id: "m1" }, { id: "m2" }],
+    expenses: [
+      { payerMemberId: "m1", title: "居酒屋", amount: 3000, debtorMemberIds: ["m1", "m2"] },
+      { payerMemberId: "m1", title: "取り残された支払い", amount: 5000, debtorMemberIds: [] },
+    ],
+  };
+
+  const input = settlementInputFromGroup(group);
+
+  assert.equal(input.expenses.length, 1, "the unsettleable expense is dropped");
+  assert.equal(input.expenses[0].title, "居酒屋");
+
+  const settled = calculateSettlement(input);
+  assert.deepEqual(settled.items, [{ fromMemberId: "m2", toMemberId: "m1", amount: "1500" }]);
 });
 
 test("unknown API routes are 404", async () => {

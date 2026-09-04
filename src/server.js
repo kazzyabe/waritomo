@@ -120,12 +120,19 @@ async function requireDatabaseUser(request) {
   return user;
 }
 
-function settlementInputFromGroup(group) {
+export function settlementInputFromGroup(group) {
+  // An expense with no debtors is unsettleable, and calculateSettlement says so
+  // by refusing the whole group. Removing a member used to leave exactly that
+  // behind (fixed in deleteMember), so any group already carrying one would be
+  // stuck on a permanent 500. Nobody owes anything for it, so it contributes
+  // nothing to drop.
+  const settleable = group.expenses.filter((expense) => expense.debtorMemberIds.length > 0);
+
   return {
     baseCurrencyCode: "JPY",
     roundingUnit: "1",
     members: group.members.map((member) => ({ id: member.id })),
-    expenses: group.expenses.map((expense) => ({
+    expenses: settleable.map((expense) => ({
       payerMemberId: expense.payerMemberId,
       title: expense.title,
       splitMode: "equal",

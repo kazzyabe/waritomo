@@ -13,7 +13,9 @@ test("trims surrounding whitespace like the other cleaners do", () => {
 });
 
 test("treats an absent color as no color", () => {
-  for (const value of [null, undefined, ""]) {
+  // " " has to land with "" rather than with the rejections: it is a client
+  // sending nothing, not a client sending something wrong.
+  for (const value of [null, undefined, "", " ", "\n"]) {
     assert.equal(cleanColor(value), null);
   }
 });

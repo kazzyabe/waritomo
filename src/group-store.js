@@ -38,9 +38,10 @@ function cleanAmount(value) {
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 export function cleanColor(value) {
-  if (value === null || value === undefined || value === "") return null;
+  if (value === null || value === undefined) return null;
 
   const color = String(value).trim();
+  if (color === "") return null;
   if (!HEX_COLOR_PATTERN.test(color)) {
     throw new StoreError(400, "invalid_input", "メンバーの色の指定が正しくありません");
   }
@@ -558,6 +559,19 @@ export async function deleteMember(groupId, memberId, userId) {
     );
     await client.query("delete from expenses where payer_member_id = $1", [memberId]);
     await client.query("delete from expense_debtors where member_id = $1", [memberId]);
+
+    // An expense whose only debtor was this member now has none, and an expense
+    // nobody owes anything for cannot be settled. It went out with them.
+    await client.query(
+      `
+        delete from expenses
+        where group_id = $1
+          and deleted_at is null
+          and not exists (select 1 from expense_debtors where expense_id = expenses.id)
+      `,
+      [groupId],
+    );
+
     await client.query("delete from group_members where id = $1", [memberId]);
 
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
