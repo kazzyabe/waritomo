@@ -572,9 +572,13 @@ export async function deleteMember(groupId, memberId, userId) {
       [groupId],
     );
 
+    // Before the member row goes, not after: settlement_confirmations points at
+    // group_members with no ON DELETE CASCADE, so a member who appears in any
+    // confirmed transfer cannot be deleted while those rows exist. The whole
+    // transaction rolled back on a foreign key violation and the member stayed.
+    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("delete from group_members where id = $1", [memberId]);
 
-    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });

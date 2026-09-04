@@ -2668,7 +2668,7 @@
               <div class="balance-row">
                 <div class="row-main">
                   <div class="row-title">${escapeHtml(member.name)}</div>
-                  <div class="row-meta">${label}</div>
+                  <div class="row-meta">${escapeHtml(label)}</div>
                 </div>
                 <div class="row-amount${tone}">${yen(Math.abs(balance))}</div>
               </div>`;
@@ -3831,7 +3831,18 @@
           return;
         }
 
-        if (session?.authenticated) await loadRemoteState().catch(() => {
+        // LIFF is up and the user is simply not signed in. Saying nothing here
+        // left the home screen fully enabled for someone whose every write can
+        // only come back 401.
+        if (!session?.authenticated) {
+          markAppUnavailable("signin");
+          cloudStorageNotice = signInAgainMessage();
+          state = emptyRemoteState([]);
+          render();
+          return;
+        }
+
+        await loadRemoteState().catch(() => {
           markAppUnavailable("storage");
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
