@@ -130,6 +130,39 @@ test("bad preview input is the caller's fault, not a 500", async () => {
   }
 });
 
+test("structurally odd preview payloads are still the caller's fault", async () => {
+  // These reached calculateSettlement as objects and threw TypeErrors deep
+  // inside it ("debtors.forEach is not a function"). That read as our bug: a
+  // 500 with a stack, from an unauthenticated endpoint, echoing internals.
+  const bodies = [
+    { members: [{ id: "a" }, { id: "b" }], expenses: {} },
+    { members: "ab", expenses: [] },
+    {
+      members: [{ id: "a" }, { id: "b" }],
+      expenses: [{ payerMemberId: "a", amount: "1", debtors: {} }],
+    },
+  ];
+
+  for (const body of bodies) {
+    const response = await postPreview(JSON.stringify(body));
+
+    assert.equal(response.status, 400, `${JSON.stringify(body)} should be a 400`);
+    assert.equal((await response.json()).error, "invalid_input");
+  }
+});
+
+test("a genuine fault inside the settlement code is still a 500", (t) => {
+  // The 400 mapping must not swallow our own bugs, or the alerting this hunk
+  // exists to protect goes quiet exactly when it matters.
+  t.mock.method(console, "error", () => {});
+  const response = collectResponse();
+
+  respondToError({ method: "POST", url: "/api/settlement/preview" }, response, new TypeError("x is not a function"));
+
+  assert.equal(response.status, 500);
+  assert.equal(JSON.parse(response.written[0]).error, "internal_error");
+});
+
 test("an oversized declared body is rejected before it is buffered", async () => {
   const response = await postPreview("x".repeat(1024 * 1024 + 1));
 

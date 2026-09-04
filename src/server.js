@@ -33,7 +33,7 @@ import {
   getSessionFromRequest,
   getSessionSecret,
 } from "./session.js";
-import { calculateSettlement } from "./settlement.js";
+import { SettlementInputError, calculateSettlement } from "./settlement.js";
 import { getUserByLineUserId, upsertLineUser } from "./users.js";
 
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
@@ -135,9 +135,11 @@ function settlementInputFromGroup(group) {
   };
 }
 
-// calculateSettlement throws plain Errors for bad input ("At least two members
-// are required"). Left unmapped they become 500s, which lets an unauthenticated
-// caller mint stack traces in our logs and spikes in our 5xx alerting at will.
+// calculateSettlement rejects bad input ("At least two members are required").
+// Left unmapped those become 500s, which lets an unauthenticated caller mint
+// stack traces in our logs and spikes in our 5xx alerting at will. Only its
+// deliberate rejections are translated: anything else escaping that function is
+// our bug, and burying it behind a 400 would hide it from the same alerting.
 function previewSettlement(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new StoreError(400, "invalid_input", "清算のプレビュー入力が正しくありません");
@@ -146,8 +148,9 @@ function previewSettlement(body) {
   try {
     return calculateSettlement(body);
   } catch (error) {
+    if (!(error instanceof SettlementInputError)) throw error;
     // The message describes the caller's own payload, so it is safe to echo.
-    throw new StoreError(400, "invalid_input", error instanceof Error ? error.message : "invalid input");
+    throw new StoreError(400, "invalid_input", error.message);
   }
 }
 

@@ -1942,11 +1942,24 @@
         return yenFormatter.format(Math.round(Number(value) || 0));
       }
 
+      // Mirrors safeDecodeURIComponent on the server. This one matters more:
+      // parseInviteRoute runs while the script is still evaluating, so a
+      // URIError from a mangled share link stops every later statement — no
+      // render, no handlers, blank screen. An id left encoded just fails the
+      // invite lookup with an ordinary error message.
+      function safeDecodeURIComponent(value) {
+        try {
+          return decodeURIComponent(value);
+        } catch {
+          return value;
+        }
+      }
+
       function parseInviteRoute() {
         const match = location.pathname.match(/^\/groups\/([^/]+)\/invite\/?$/);
         if (!match) return null;
         return {
-          groupId: decodeURIComponent(match[1]),
+          groupId: safeDecodeURIComponent(match[1]),
           token: new URLSearchParams(location.search).get("token") || "",
         };
       }
@@ -3397,9 +3410,11 @@
       // while LIFF still believes the user is signed in.
       function restartLineLogin() {
         if (!window.liff || !config.line?.liffId) return false;
-        if (liff.isInClient?.()) return false;
 
         try {
+          // Every liff.* call below throws if liff.init() never finished, which
+          // is exactly the state this recovery path can be reached in.
+          if (liff.isInClient?.()) return false;
           if (liff.isLoggedIn?.()) liff.logout();
           liff.login({ redirectUri: location.href });
           return true;
@@ -3633,7 +3648,11 @@
 
       async function authenticateWithLine() {
         const idToken = liff.getIDToken();
-        if (!idToken) throw new Error("LINEのIDトークンを取得できませんでした");
+        if (!idToken) {
+          const missing = new Error("LINEのIDトークンを取得できませんでした");
+          missing.retryable = false;
+          throw missing;
+        }
 
         const response = await fetch("/api/auth/line", {
           method: "POST",
@@ -3647,6 +3666,8 @@
         if (!response.ok || !payload?.authenticated) {
           const error = new Error(payload?.message || "LINEログインに失敗しました");
           error.status = response.status;
+          // A rejected token fails the same way a second time; our own 5xx may not.
+          error.retryable = response.status >= 500;
           throw error;
         }
         return payload;
@@ -3660,7 +3681,9 @@
         try {
           return await authenticateWithLine();
         } catch (error) {
-          if (error.status >= 400 && error.status < 500) throw error;
+          // Anything we did not label is a fetch that never got an answer, and
+          // that is worth one more try. What we did label as hopeless is not.
+          if (error.retryable === false) throw error;
           await new Promise((resolve) => setTimeout(resolve, 600));
           return authenticateWithLine();
         }
