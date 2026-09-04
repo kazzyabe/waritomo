@@ -488,6 +488,15 @@ export async function addMember(groupId, userId, input) {
 
   return withTransaction(async (client) => {
     await ensureGroupAccess(client, groupId, userId);
+
+    const duplicateResult = await client.query(
+      "select 1 from group_members where group_id = $1 and name = $2",
+      [groupId, name],
+    );
+    if (duplicateResult.rows[0]) {
+      throw new StoreError(409, "duplicate_member_name", `「${name}」は既にメンバーにいます`);
+    }
+
     await client.query(
       `
         insert into group_members (id, group_id, name, color_code, sort_order)
