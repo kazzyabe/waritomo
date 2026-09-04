@@ -14,27 +14,51 @@ function requireArray(value, label) {
   return value;
 }
 
+function requireObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) reject(`${label} must be an object`);
+  return value;
+}
+
+function requireId(value, label) {
+  if (typeof value !== "string" || value === "") reject(`${label} must be a non-empty string`);
+  return value;
+}
+
+// parseDecimal throws a plain Error, which would read as our fault. Every
+// amount here came off the wire, so a bad one is the caller's.
+function requireDecimal(value, label) {
+  try {
+    return parseDecimal(value);
+  } catch {
+    return reject(`${label} must be a decimal amount`);
+  }
+}
+
 function requireMember(memberIds, memberId) {
   if (!memberIds.has(memberId)) reject(`Unknown memberId: ${memberId}`);
 }
 
-function toBaseUnits(amount, rateToBase = "1") {
-  return multiplyDecimal(parseDecimal(amount), parseDecimal(rateToBase));
+function toBaseUnits(amount, rateToBase = "1", label) {
+  return multiplyDecimal(requireDecimal(amount, label), requireDecimal(rateToBase, `${label} rate`));
 }
 
 function normalizeExpense(memberIds, expense) {
+  requireObject(expense, "expense");
   requireMember(memberIds, expense.payerMemberId);
 
-  const baseAmount = toBaseUnits(expense.amount, expense.rateToBase);
+  const baseAmount = toBaseUnits(expense.amount, expense.rateToBase, "expense amount");
   const debtors = requireArray(expense.debtors ?? [], "expense.debtors");
   if (debtors.length === 0) reject("Expense must include at least one debtor");
 
-  debtors.forEach((debtor) => requireMember(memberIds, debtor.memberId));
+  debtors.forEach((debtor) => {
+    requireObject(debtor, "debtor");
+    requireMember(memberIds, debtor.memberId);
+  });
 
   if (expense.splitMode === "custom") {
     const debtorAmounts = debtors.map((debtor) => ({
       memberId: debtor.memberId,
-      amount: toBaseUnits(debtor.amount, expense.rateToBase),
+      amount: toBaseUnits(debtor.amount, expense.rateToBase, "debtor amount"),
     }));
 
     const totalDebtorAmount = debtorAmounts.reduce((sum, debtor) => sum + debtor.amount, 0n);
@@ -59,7 +83,16 @@ function normalizeExpense(memberIds, expense) {
 }
 
 export function calculateSettlement(input) {
+  requireObject(input, "input");
+
   const members = requireArray(input.members ?? [], "members");
+  members.forEach((member) => {
+    requireObject(member, "member");
+    // Ids end up as Map keys and are sorted with localeCompare, both of which
+    // need a real string.
+    requireId(member.id, "member id");
+  });
+
   const memberIds = new Set(members.map((member) => member.id));
   if (memberIds.size !== members.length) reject("Member IDs must be unique");
   if (members.length < 2) reject("At least two members are required");
@@ -90,6 +123,8 @@ export function calculateSettlement(input) {
   creditors.sort((a, b) => a.memberId.localeCompare(b.memberId));
 
   const roundingUnit = input.roundingUnit ?? "0";
+  requireDecimal(roundingUnit, "roundingUnit");
+
   const items = [];
   let debtorIndex = 0;
   let creditorIndex = 0;

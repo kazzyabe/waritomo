@@ -2078,7 +2078,11 @@
           return false;
         }
         const status = await apiJson("/api/storage/status").catch(() => ({ available: false }));
-        appUnavailable = !status.available;
+        if (status.available) {
+          appUnavailable = false;
+        } else {
+          markAppUnavailable("storage");
+        }
         if (appUnavailable) {
           remoteReady = false;
           cloudStorageNotice = unavailableMessage();
