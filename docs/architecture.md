@@ -93,6 +93,12 @@ For each group:
 - `SESSION_SECRET`
 - `CURRENCY_RATE_PROVIDER`
 
+`SESSION_SECRET` is mandatory whenever `APP_ENV=production`, `NODE_ENV=production`
+(which the Dockerfile always sets), or `DATABASE_URL` is present. The server
+refuses to start without it rather than falling back to the shared development
+secret, so a deployment that forgets it fails the revision instead of signing
+forgeable sessions.
+
 Secrets should come from Secret Manager in Cloud Run, not from committed files.
 
 ## Deployment

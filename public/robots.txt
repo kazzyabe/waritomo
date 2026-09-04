@@ -1,0 +1,5 @@
+# Group pages and invite links are reachable by anyone holding the URL, so they
+# must never become reachable by anyone holding a search box.
+User-agent: *
+Disallow: /groups/
+Disallow: /api/

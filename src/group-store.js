@@ -32,6 +32,21 @@ function cleanAmount(value) {
   return String(Math.round(amount));
 }
 
+// Colors arrive from the client and are stored verbatim, so they have to be a
+// color and nothing else. Anything looser eventually reaches a style attribute
+// or an inline style block, and an unvalidated string there is an XSS sink.
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+export function cleanColor(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const color = String(value).trim();
+  if (!HEX_COLOR_PATTERN.test(color)) {
+    throw new StoreError(400, "invalid_input", "メンバーの色の指定が正しくありません");
+  }
+  return color;
+}
+
 function cleanInviteToken(value) {
   const token = String(value ?? "").trim();
   if (!token) throw new StoreError(400, "invalid_invite", "招待リンクが無効です");
@@ -350,7 +365,7 @@ export async function joinGroupByInvite(groupId, user, input) {
           (select coalesce(max(sort_order), -1) + 1 from group_members where group_id = $2)
         )
       `,
-      [createId("mem"), groupId, user.id, cleanMemberName, input.color ?? null],
+      [createId("mem"), groupId, user.id, cleanMemberName, cleanColor(input.color)],
     );
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, user.id);
@@ -436,7 +451,7 @@ export async function createGroup(user, input) {
           groupId,
           index === 0 ? user.id : null,
           name,
-          input.colors?.[index] ?? null,
+          cleanColor(input.colors?.[index]),
           index,
         ],
       );
@@ -512,7 +527,7 @@ export async function addMember(groupId, userId, input) {
           (select coalesce(max(sort_order), -1) + 1 from group_members where group_id = $2)
         )
       `,
-      [createId("mem"), groupId, name, input.color ?? null],
+      [createId("mem"), groupId, name, cleanColor(input.color)],
     );
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);

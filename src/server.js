@@ -1,9 +1,10 @@
 import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkDatabaseAvailable, isDatabaseEnabled, migrateDatabase } from "./db.js";
 import { getDatabaseUserByLineUserId, upsertDatabaseLineUser } from "./db-users.js";
+import { safeDecodeURIComponent } from "./decode.js";
 import {
   StoreError,
   addExpense,
@@ -29,6 +30,7 @@ import {
   createSessionCookie,
   createSessionToken,
   getSessionFromRequest,
+  getSessionSecret,
 } from "./session.js";
 import { calculateSettlement } from "./settlement.js";
 import { getUserByLineUserId, upsertLineUser } from "./users.js";
@@ -43,7 +45,12 @@ const contentTypes = {
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".txt": "text/plain; charset=utf-8",
 };
+
+// No legitimate request here carries a megabyte. Past this the body is either
+// a broken client or someone filling our heap, and reading stops either way.
+const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
@@ -126,14 +133,83 @@ function settlementInputFromGroup(group) {
 }
 
 function splitPath(pathname) {
-  return pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  return pathname.split("/").filter(Boolean).map(safeDecodeURIComponent);
+}
+
+function payloadTooLarge() {
+  return new StoreError(413, "payload_too_large", "リクエストが大きすぎます");
+}
+
+// Read the body by hand rather than with `for await`: breaking out of an async
+// iterator destroys the request, which tears the socket down before the 413 can
+// be written. Pausing leaves the connection alive just long enough to answer.
+function readBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    let settled = false;
+
+    const settle = (finish, value) => {
+      if (settled) return;
+      settled = true;
+      request.off("data", onData);
+      request.off("end", onEnd);
+      request.off("error", onError);
+      finish(value);
+    };
+
+    function onData(chunk) {
+      size += chunk.length;
+      if (size > MAX_REQUEST_BODY_BYTES) {
+        request.pause();
+        settle(reject, payloadTooLarge());
+        return;
+      }
+      chunks.push(chunk);
+    }
+
+    function onEnd() {
+      settle(resolve, Buffer.concat(chunks));
+    }
+
+    function onError(error) {
+      settle(reject, error);
+    }
+
+    request.on("data", onData);
+    request.on("end", onEnd);
+    request.on("error", onError);
+  });
 }
 
 async function readJson(request) {
-  const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
-  if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  // Well-behaved clients announce the size up front, so the common oversized
+  // case never touches the socket buffer at all.
+  const declaredLength = Number(request.headers["content-length"]);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
+    throw payloadTooLarge();
+  }
+
+  const body = await readBody(request);
+  if (body.length === 0) return {};
+
+  try {
+    return JSON.parse(body.toString("utf8"));
+  } catch {
+    throw new StoreError(400, "invalid_json", "リクエストの形式が正しくありません");
+  }
+}
+
+function sendFile(response, filePath, headers) {
+  response.writeHead(200, headers);
+  const stream = createReadStream(filePath);
+  // `pipe` does not forward read errors, and an unhandled one on a stream would
+  // take the process down. The file can still vanish between stat and open.
+  stream.on("error", (error) => {
+    console.error("static file read failed", filePath, error);
+    response.destroy();
+  });
+  stream.pipe(response);
 }
 
 function serveStatic(request, response) {
@@ -146,14 +222,27 @@ function serveStatic(request, response) {
     const stats = statSync(filePath);
     if (!stats.isFile()) throw new Error("Not a file");
 
-    response.writeHead(200, {
+    sendFile(response, filePath, {
       "content-type": contentTypes[extname(filePath)] ?? "application/octet-stream",
       "cache-control": filePath.endsWith("index.html") ? "no-store" : "public, max-age=3600",
     });
-    createReadStream(filePath).pipe(response);
   } catch {
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-    createReadStream(join(publicDir, "index.html")).pipe(response);
+    // A path that names a file is asking for that file. Answering a missing
+    // script or image with 200 and the app shell hides the breakage from the
+    // browser, from monitoring, and from every cache in between.
+    if (extname(safePath)) {
+      response.writeHead(404, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end("Not Found");
+      return;
+    }
+
+    sendFile(response, join(publicDir, "index.html"), {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
   }
 }
 
@@ -382,7 +471,43 @@ async function handleApi(request, response) {
   sendJson(response, 404, { error: "not_found" });
 }
 
-const server = createServer(async (request, response) => {
+function respondToError(request, response, error) {
+  // Once a response has started there is nothing left to say; writing again
+  // would throw ERR_HTTP_HEADERS_SENT out of the error handler itself.
+  if (response.headersSent) {
+    console.error("request failed after response started", request.method, request.url, error);
+    response.destroy();
+    return;
+  }
+
+  if (error instanceof LineAuthError) {
+    sendJson(response, error.statusCode, {
+      error: "line_auth_error",
+      message: error.message,
+      details: error.details,
+    });
+    return;
+  }
+
+  if (error instanceof StoreError) {
+    sendJson(response, error.statusCode, {
+      error: error.code,
+      message: error.message,
+    });
+    return;
+  }
+
+  // The detail belongs in the server log, not in the response: error.message
+  // here is whatever pg, node, or a parser produced, and that leaks schema and
+  // infrastructure to anyone who can provoke a failure.
+  console.error("unhandled request error", request.method, request.url, error);
+  sendJson(response, 500, {
+    error: "internal_error",
+    message: "サーバーエラーが発生しました",
+  });
+}
+
+export async function handleRequest(request, response) {
   try {
     if (request.url?.startsWith("/api/")) {
       await handleApi(request, response);
@@ -391,42 +516,40 @@ const server = createServer(async (request, response) => {
 
     serveStatic(request, response);
   } catch (error) {
-    if (error instanceof LineAuthError) {
-      sendJson(response, error.statusCode, {
-        error: "line_auth_error",
-        message: error.message,
-        details: error.details,
-      });
-      return;
+    try {
+      respondToError(request, response, error);
+    } catch (failure) {
+      // Writing to a socket the client already dropped must not surface as an
+      // unhandled rejection, which would take the whole process with it.
+      console.error("failed to send error response", request.method, request.url, failure);
+      response.destroy();
     }
-
-    if (error instanceof StoreError) {
-      sendJson(response, error.statusCode, {
-        error: error.code,
-        message: error.message,
-      });
-      return;
-    }
-
-    sendJson(response, 500, {
-      error: "internal_error",
-      message: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
-});
-
-const port = Number(process.env.PORT ?? 8080);
-const host = process.env.HOST ?? "0.0.0.0";
-
-if (process.env.DB_AUTO_MIGRATE === "true" && isDatabaseEnabled()) {
-  try {
-    await migrateDatabase();
-    console.log("database schema applied");
-  } catch (error) {
-    console.error("database schema migration failed", error);
   }
 }
 
-server.listen(port, host, () => {
-  console.log(`waritomo listening on ${host}:${port}`);
-});
+// Importing this module must not bind a port: the tests drive `handleRequest`
+// through a server of their own.
+const isEntryPoint = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isEntryPoint) {
+  // Fail the deploy rather than the first request that needs a session: a
+  // missing SESSION_SECRET is a configuration error, and a revision that
+  // cannot sign sessions should never take traffic.
+  getSessionSecret();
+
+  const port = Number(process.env.PORT ?? 8080);
+  const host = process.env.HOST ?? "0.0.0.0";
+
+  if (process.env.DB_AUTO_MIGRATE === "true" && isDatabaseEnabled()) {
+    try {
+      await migrateDatabase();
+      console.log("database schema applied");
+    } catch (error) {
+      console.error("database schema migration failed", error);
+    }
+  }
+
+  createServer(handleRequest).listen(port, host, () => {
+    console.log(`waritomo listening on ${host}:${port}`);
+  });
+}

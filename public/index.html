@@ -1910,6 +1910,10 @@
         return "クラウド保存に接続できません。時間をおいて再度お試しください。";
       }
 
+      function signInAgainMessage() {
+        return "LINEログインをやり直してください。一度アプリを閉じて開き直すと復帰します。";
+      }
+
       function requireDatabaseAvailable() {
         if (canUseDatabase()) return true;
         showToast(unavailableMessage());
@@ -2329,7 +2333,7 @@
       function renderGroupPicker() {
         elements.groupPicker.hidden = state.groups.length < 2;
         elements.groupPicker.innerHTML = sortGroupSummaries(state.groups)
-          .map((group) => `<option value="${group.id}">${escapeHtml(group.groupName)}</option>`)
+          .map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.groupName)}</option>`)
           .join("");
         elements.groupPicker.value = state.activeGroupId;
       }
@@ -2392,8 +2396,8 @@
             const actionButtons = completed
               ? ""
               : `
-                    <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
-                    <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
+                    <button class="mini-action" type="button" data-edit-expense="${escapeHtml(expense.id)}">編集</button>
+                    <button class="mini-action danger" type="button" data-delete-expense="${escapeHtml(expense.id)}">削除</button>
                   `;
             const expenseRow = `
               <div class="expense-row">
@@ -2649,13 +2653,13 @@
             (member) => {
               const label = member.linkedToCurrentUser ? currentUserName : member.available === false ? "参加済み" : "未参加";
               const linkAction = member.linkedToCurrentUser
-                ? `<button class="mini-action" type="button" data-unlink-member="${member.id}">解除</button>`
+                ? `<button class="mini-action" type="button" data-unlink-member="${escapeHtml(member.id)}">解除</button>`
                 : member.available !== false
-                  ? `<button class="mini-action" type="button" data-claim-member="${member.id}">自分にする</button>`
+                  ? `<button class="mini-action" type="button" data-claim-member="${escapeHtml(member.id)}">自分にする</button>`
                   : `<span class="tag">参加済み</span>`;
               const deleteAction =
                 !completed && state.members.length > 2
-                  ? `<button class="mini-action danger" type="button" data-delete-member="${member.id}">削除</button>`
+                  ? `<button class="mini-action danger" type="button" data-delete-member="${escapeHtml(member.id)}">削除</button>`
                   : "";
               return `
                 <div class="member-row">
@@ -2758,7 +2762,7 @@
 
       function renderExpenseFormOptions(expense = null) {
         elements.payer.innerHTML = state.members
-          .map((member) => `<option value="${member.id}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
+          .map((member) => `<option value="${escapeHtml(member.id)}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
           .join("");
 
         const debtorIds = new Set(expense?.debtorMemberIds ?? state.members.map((member) => member.id));
@@ -2766,7 +2770,7 @@
           .map(
             (member) => `
               <label class="check-card">
-                <input type="checkbox" name="debtor" value="${member.id}" ${debtorIds.has(member.id) ? "checked" : ""} />
+                <input type="checkbox" name="debtor" value="${escapeHtml(member.id)}" ${debtorIds.has(member.id) ? "checked" : ""} />
                 <span>${escapeHtml(member.name)}</span>
               </label>`,
           )
@@ -3589,14 +3593,21 @@
 
       async function authenticateWithLine() {
         const idToken = liff.getIDToken();
-        if (!idToken) return;
+        if (!idToken) throw new Error("LINEのIDトークンを取得できませんでした");
 
         const response = await fetch("/api/auth/line", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ idToken }),
         });
-        await response.json();
+        const payload = await response.json().catch(() => null);
+        // A 401 still parses as JSON, so the status has to be checked. Treating
+        // every response as success left the app believing it was signed in and
+        // blamed the resulting 401s on the database being unreachable.
+        if (!response.ok || !payload?.authenticated) {
+          throw new Error(payload?.message || "LINEログインに失敗しました");
+        }
+        return payload;
       }
 
       async function initializeMiniApp() {
@@ -3638,8 +3649,27 @@
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile().catch(() => null);
           if (profile?.displayName) currentUserName = profile.displayName;
-          await authenticateWithLine().catch(() => null);
-          currentUserAuthenticated = true;
+
+          const reauthenticated = await authenticateWithLine().then(
+            () => true,
+            (error) => {
+              console.error("line authentication failed", error);
+              return false;
+            },
+          );
+          // A cookie from an earlier visit is still a valid session, so a failed
+          // refresh alone is not a reason to sign the user out.
+          currentUserAuthenticated = reauthenticated || Boolean(session?.authenticated);
+
+          if (!currentUserAuthenticated) {
+            // Deliberately not appUnavailable: that would disable the invite
+            // flow, and the invite flow is what offers the login again.
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
           render();
           await loadRemoteState().catch(() => {
             appUnavailable = true;

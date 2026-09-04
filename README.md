@@ -67,7 +67,9 @@ DATABASE_URL=postgres://user:password@127.0.0.1:5432/waritomo npm run db:migrate
 
 For local mini app configuration, copy `.env.example` values into your shell or
 Cloud Run environment. `LINE_LIFF_ID` is optional for local browser development,
-but a reachable `DATABASE_URL` is required to load or edit group data.
+but a reachable `DATABASE_URL` is required to load or edit group data. Once
+`DATABASE_URL` is set, `SESSION_SECRET` must be set too — the server refuses to
+start on a real database with the shared development secret.
 
 Open:
 
