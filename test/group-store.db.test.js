@@ -180,6 +180,35 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     }
   });
 
+  test("amounts are bounded on the value that actually gets stored", async () => {
+    // Both columns are `check (amount > 0)` and it is the rounded value that
+    // lands there, so bounds checked on the pre-rounded value miss: "0.4" is
+    // > 0, stores as "0", and comes back from pg as 23514 — a 500 for a bad
+    // request. And stripping every non-digit made "-3000" a ¥3,000 expense.
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    const addWith = (amount) =>
+      store.addExpense(group.id, user.id, {
+        title: "テスト",
+        amount,
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+      });
+
+    for (const amount of ["0.4", "0", "-3000", "1e5", "abc100", "999999999999999"]) {
+      await assert.rejects(
+        addWith(amount),
+        (error) => error instanceof store.StoreError && error.statusCode === 400,
+        `amount=${amount} must be a 400, never a pg constraint violation`,
+      );
+    }
+
+    // Ordinary formatting is still accepted, and rounds the way it reads.
+    const saved = await addWith("3,000");
+    assert.equal(saved.expenses.find((expense) => expense.title === "テスト").amount, 3000);
+  });
+
   test("a color that is not a color is refused and the group is not written", async () => {
     const user = await users.upsertDatabaseLineUser({
       sub: `Utest_color_${process.pid}`,

@@ -258,6 +258,8 @@ async function readJson(request) {
 }
 
 function sendFile(response, filePath, headers) {
+  // writeHead commits the 200. Anything that goes wrong after this point can
+  // only be a destroyed socket, so the file has to be known-good first.
   response.writeHead(200, headers);
   // `pipe` neither forwards read errors (an unhandled one would take the
   // process down) nor destroys the source when the client goes away mid
@@ -294,7 +296,19 @@ function serveStatic(request, response) {
       return;
     }
 
-    sendFile(response, join(publicDir, "index.html"), {
+    const shellPath = join(publicDir, "index.html");
+    try {
+      statSync(shellPath);
+    } catch (error) {
+      // Without this the missing shell is a 200 with an empty body: a blank
+      // page for the user and a healthy service to whatever is watching it.
+      console.error("app shell is missing", shellPath, error);
+      response.writeHead(500, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+      response.end("Internal Server Error");
+      return;
+    }
+
+    sendFile(response, shellPath, {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",
     });

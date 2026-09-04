@@ -30,14 +30,27 @@ function cleanName(value, label = "名前") {
 const MAX_AMOUNT = 10 ** 14 - 1;
 
 function cleanAmount(value) {
-  const amount = Number(String(value ?? "").replace(/[^\d.]/g, ""));
+  // Both columns are `check (amount > 0)`, and it is the rounded value that
+  // gets stored — so the rounded value is what has to clear the bounds. "0.4"
+  // passed the old `> 0` check and went to pg as "0", which is a constraint
+  // violation and a 500 for a plainly bad request.
+  //
+  // Stripping every non-digit was too forgiving in the other direction: it
+  // turned "-3000" into a ¥3,000 expense and "1e5" into ¥15. Commas and a yen
+  // sign are formatting and still welcome; a minus sign changes the meaning.
+  const raw = String(value ?? "").trim().replace(/[,\s¥￥]|円$/g, "");
+  if (!/^\d+(\.\d+)?$/.test(raw)) {
+    throw new StoreError(400, "invalid_input", "金額を入力してください");
+  }
+
+  const amount = Math.round(Number(raw));
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new StoreError(400, "invalid_input", "金額を入力してください");
   }
-  if (Math.round(amount) > MAX_AMOUNT) {
+  if (amount > MAX_AMOUNT) {
     throw new StoreError(400, "invalid_input", "金額が大きすぎます");
   }
-  return String(Math.round(amount));
+  return String(amount);
 }
 
 // Colors arrive from the client and are stored verbatim, so they have to be a
