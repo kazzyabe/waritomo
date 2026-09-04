@@ -24,10 +24,18 @@ function cleanName(value, label = "名前") {
   return name;
 }
 
+// expenses.amount and settlement_confirmations.amount are numeric(18, 4), so
+// 14 integer digits is all the column holds. Without this the overflow surfaces
+// as a pg error, which is a 500 for what is plainly a bad request.
+const MAX_AMOUNT = 10 ** 14 - 1;
+
 function cleanAmount(value) {
   const amount = Number(String(value ?? "").replace(/[^\d.]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new StoreError(400, "invalid_input", "金額を入力してください");
+  }
+  if (Math.round(amount) > MAX_AMOUNT) {
+    throw new StoreError(400, "invalid_input", "金額が大きすぎます");
   }
   return String(Math.round(amount));
 }

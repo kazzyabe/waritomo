@@ -3750,7 +3750,19 @@
         }
 
         if (!window.liff) {
-          if (session?.authenticated) await loadRemoteState().catch(() => {
+          // The LIFF SDK is a plain external script with no fallback, so a
+          // blocked or failed CDN load lands here. Without a session that is a
+          // sign-in problem, and saying nothing would leave the home screen
+          // fully enabled for writes that can only come back 401.
+          if (!session?.authenticated) {
+            markAppUnavailable("signin");
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
+          await loadRemoteState().catch(() => {
             markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);

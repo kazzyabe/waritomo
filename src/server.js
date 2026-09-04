@@ -157,6 +157,22 @@ function previewSettlement(body) {
   }
 }
 
+// The other caller of calculateSettlement. A rejection here is our stored data
+// failing to express a settlement, not a bad request — the caller cannot fix it
+// and retrying will not help — so it stays a 5xx. It gets its own code and log
+// line because, unlike a one-off bad request, it would repeat on every visit to
+// the group's main screen until someone looked.
+function settlementForGroup(group) {
+  try {
+    return calculateSettlement(settlementInputFromGroup(group));
+  } catch (error) {
+    if (!(error instanceof SettlementInputError)) throw error;
+
+    console.error("settlement input rejected for group", group.id, error.message);
+    throw new StoreError(500, "settlement_unavailable", "清算を計算できませんでした");
+  }
+}
+
 function splitPath(pathname) {
   return pathname.split("/").filter(Boolean).map(safeDecodeURIComponent);
 }
@@ -433,7 +449,7 @@ async function handleApi(request, response) {
     if (parts.length === 4 && parts[3] === "settlement" && request.method === "GET") {
       const group = await getGroup(groupId, user.id);
       sendJson(response, 200, {
-        ...calculateSettlement(settlementInputFromGroup(group)),
+        ...settlementForGroup(group),
         confirmations: await listSettlementConfirmations(groupId, user.id),
       });
       return;

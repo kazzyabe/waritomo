@@ -115,6 +115,33 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     assert.deepEqual(settled.items, [{ fromMemberId: b.id, toMemberId: a.id, amount: "1500" }]);
   });
 
+  test("an amount the column cannot hold is refused before pg sees it", async () => {
+    // expenses.amount is numeric(18,4). Past that pg raises "numeric field
+    // overflow", which the generic handler turns into a masked 500 for what is
+    // plainly a bad request.
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    await assert.rejects(
+      store.addExpense(group.id, user.id, {
+        title: "大きすぎる支払い",
+        amount: "999999999999999",
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+      }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+
+    // The widest value the column does hold still goes in.
+    const saved = await store.addExpense(group.id, user.id, {
+      title: "ぎりぎり",
+      amount: "99999999999999",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+    });
+    assert.ok(saved.expenses.some((expense) => expense.title === "ぎりぎり"));
+  });
+
   test("a color that is not a color is refused and the group is not written", async () => {
     const user = await users.upsertDatabaseLineUser({
       sub: `Utest_color_${process.pid}`,
