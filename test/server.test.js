@@ -9,7 +9,7 @@ delete process.env.DATABASE_URL;
 delete process.env.APP_ENV;
 delete process.env.NODE_ENV;
 
-const { handleRequest, respondToError, settlementInputFromGroup } = await import("../src/server.js");
+const { handleRequest, readJson, respondToError, settlementInputFromGroup } = await import("../src/server.js");
 const { StoreError } = await import("../src/group-store.js");
 const { LineAuthError } = await import("../src/line-auth.js");
 const { calculateSettlement } = await import("../src/settlement.js");
@@ -208,6 +208,47 @@ test("an oversized declared body is rejected before it is buffered", async () =>
     error: "payload_too_large",
     message: "リクエストが大きすぎます",
   });
+});
+
+test("a client that vanishes mid-request does not pin the handler forever", async () => {
+  // Every route reads its body after an await, and Node destroys an aborted
+  // request while nothing is listening — swallowing the error. A reader that
+  // subscribes afterwards waits on a stream that will never emit again, and
+  // the whole handler frame stays pinned behind the pending promise.
+  const settled = [];
+  const probe = createServer(async (request, response) => {
+    await new Promise((resolve) => setTimeout(resolve, 120)); // stands in for the DB round trip
+    await readJson(request).then(
+      () => settled.push("resolved"),
+      () => settled.push("rejected"),
+    );
+    try {
+      response.end("ok");
+    } catch {
+      // The socket is gone; that is the case under test.
+    }
+  });
+
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const { port } = probe.address();
+
+  try {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const socket = connect(port, "127.0.0.1");
+      await new Promise((resolve) => socket.on("connect", resolve));
+      socket.write(
+        "POST /x HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 20\r\n\r\n{",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      socket.resetAndDestroy();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.equal(settled.length, 3, `every read must settle, got ${JSON.stringify(settled)}`);
+  } finally {
+    await new Promise((resolve) => probe.close(resolve));
+  }
 });
 
 test("a rejected upload does not wedge the connection behind it", async () => {

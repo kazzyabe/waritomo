@@ -184,8 +184,21 @@ function payloadTooLarge() {
 // Read the body by hand rather than with `for await`: breaking out of an async
 // iterator destroys the request, which tears the socket down before the 413 can
 // be written. Reading it manually keeps the connection able to carry the answer.
+function requestAborted() {
+  return new StoreError(400, "request_aborted", "リクエストが中断されました");
+}
+
 function readBody(request) {
   return new Promise((resolve, reject) => {
+    // Every route reaches here after an await — a database round trip, a call
+    // to LINE — and the client can disappear during it. Node destroys the
+    // request and deliberately swallows the error while nothing is listening,
+    // so subscribing afterwards finds a stream that will never emit again.
+    if (request.destroyed || request.readableEnded) {
+      reject(requestAborted());
+      return;
+    }
+
     const chunks = [];
     let size = 0;
     let settled = false;
@@ -196,6 +209,7 @@ function readBody(request) {
       request.off("data", onData);
       request.off("end", onEnd);
       request.off("error", onError);
+      request.off("close", onClose);
       finish(value);
     };
 
@@ -223,13 +237,22 @@ function readBody(request) {
       settle(reject, error);
     }
 
+    // The backstop. `close` fires whether the request ended cleanly or was torn
+    // down, and it is the only one of these guaranteed to arrive — without it a
+    // client that resets mid-request leaves this promise pending forever, and
+    // the whole handler frame pinned behind it.
+    function onClose() {
+      settle(reject, requestAborted());
+    }
+
     request.on("data", onData);
     request.on("end", onEnd);
     request.on("error", onError);
+    request.on("close", onClose);
   });
 }
 
-async function readJson(request) {
+export async function readJson(request) {
   // Well-behaved clients announce the size up front, so the common oversized
   // case never touches the socket buffer at all.
   const declaredLength = Number(request.headers["content-length"]);
@@ -274,6 +297,10 @@ function serveStatic(request, response) {
   const unsafePath = url.pathname === "/" ? "/index.html" : url.pathname;
   const safePath = normalize(unsafePath).replace(/^(\.\.[/\\])+/, "");
   const filePath = getStaticFilePath(safePath);
+  // Read the extension off what the client asked for, not off safePath: "/" has
+  // already been rewritten to "/index.html" by here, which would send a missing
+  // shell down the 404 branch instead of the one that reports it.
+  const requestNamesAFile = Boolean(extname(url.pathname));
 
   try {
     const stats = statSync(filePath);
@@ -287,7 +314,7 @@ function serveStatic(request, response) {
     // A path that names a file is asking for that file. Answering a missing
     // script or image with 200 and the app shell hides the breakage from the
     // browser, from monitoring, and from every cache in between.
-    if (extname(safePath)) {
+    if (requestNamesAFile) {
       response.writeHead(404, {
         "content-type": "text/plain; charset=utf-8",
         "cache-control": "no-store",
