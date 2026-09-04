@@ -1,6 +1,13 @@
 const SCALE_DIGITS = 4;
 const SCALE = 10n ** BigInt(SCALE_DIGITS);
 
+// The widest column we store into is numeric(24,10), so nothing legitimate
+// comes near this. Without a bound, one request inside the 1MB body cap can
+// carry a half-million-digit number: the BigInt arithmetic blocks the event
+// loop for hundreds of milliseconds and the formatted result comes back
+// several times larger than the request that asked for it.
+const MAX_DECIMAL_LENGTH = 40;
+
 export function parseDecimal(value) {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error("Invalid decimal number");
@@ -10,6 +17,7 @@ export function parseDecimal(value) {
   if (typeof value !== "string") throw new Error("Decimal value must be a string or number");
 
   const trimmed = value.trim();
+  if (trimmed.length > MAX_DECIMAL_LENGTH) throw new Error("Decimal value is too long");
   if (!/^-?\d+(\.\d+)?$/.test(trimmed)) throw new Error(`Invalid decimal: ${value}`);
 
   const sign = trimmed.startsWith("-") ? -1n : 1n;

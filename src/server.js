@@ -141,10 +141,6 @@ function settlementInputFromGroup(group) {
 // deliberate rejections are translated: anything else escaping that function is
 // our bug, and burying it behind a 400 would hide it from the same alerting.
 function previewSettlement(body) {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new StoreError(400, "invalid_input", "清算のプレビュー入力が正しくありません");
-  }
-
   try {
     return calculateSettlement(body);
   } catch (error) {
@@ -221,11 +217,21 @@ async function readJson(request) {
   const body = await readBody(request);
   if (body.length === 0) return {};
 
+  let parsed;
   try {
-    return JSON.parse(body.toString("utf8"));
+    parsed = JSON.parse(body.toString("utf8"));
   } catch {
     throw new StoreError(400, "invalid_json", "リクエストの形式が正しくありません");
   }
+
+  // `null`, `[]` and `7` are all valid JSON, and every route here reads fields
+  // off what it gets back. Rejecting them once is the difference between a 400
+  // and a 500 with a stack trace on whichever route was missed.
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new StoreError(400, "invalid_json", "リクエストの形式が正しくありません");
+  }
+
+  return parsed;
 }
 
 function sendFile(response, filePath, headers) {

@@ -2260,8 +2260,14 @@
         const totalAmountAcrossGroups = groups.reduce((sum, group) => sum + Number(group.totalAmount || 0), 0);
         const totalExpenseCount = groups.reduce((sum, group) => sum + Number(group.expenseCount || 0), 0);
         const creationDisabled = appUnavailable ? "disabled" : "";
+        const noticeDetail = appUnavailableReason === "signin"
+          ? "ログインし直すまで、グループの表示や作成はできません。"
+          : "データの表示・作成・編集は一時的に利用できません。";
+        const noticeAction = appUnavailableReason === "signin" && canRestartLineLogin()
+          ? `<button class="button subtle" type="button" data-action="restart-line-login">LINEログインをやり直す</button>`
+          : "";
         const notice = cloudStorageNotice
-          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>データの表示・作成・編集は一時的に利用できません。</span></div>`
+          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>${escapeHtml(noticeDetail)}</span>${noticeAction}</div>`
           : "";
         const invitePanel = inviteContext ? renderInvitePanel() : "";
         const rows = groups
@@ -3412,13 +3418,24 @@
       // mini app is what gets a fresh token. In an external browser the LIFF
       // session has to be dropped first, because login() also does nothing
       // while LIFF still believes the user is signed in.
+      // Inside the LINE client the user is signed in automatically and
+      // liff.login() is a documented no-op, so there is nothing to offer there
+      // — reopening the mini app is what gets a fresh token. Every liff.* call
+      // also throws if liff.init() never finished, which is exactly the state
+      // this recovery path is reached in.
+      function canRestartLineLogin() {
+        try {
+          return Boolean(window.liff && config.line?.liffId) && !liff.isInClient?.();
+        } catch (error) {
+          console.error("could not check the LINE login state", error);
+          return false;
+        }
+      }
+
       function restartLineLogin() {
-        if (!window.liff || !config.line?.liffId) return false;
+        if (!canRestartLineLogin()) return false;
 
         try {
-          // Every liff.* call below throws if liff.init() never finished, which
-          // is exactly the state this recovery path can be reached in.
-          if (liff.isInClient?.()) return false;
           if (liff.isLoggedIn?.()) liff.logout();
           liff.login({ redirectUri: location.href });
           return true;
@@ -3727,7 +3744,34 @@
           return;
         }
 
-        await liff.init({ liffId: config.line.liffId });
+        const liffReady = await liff
+          .init({ liffId: config.line.liffId })
+          .then(() => true, (error) => {
+            console.error("liff.init failed", error);
+            return false;
+          });
+
+        if (!liffReady) {
+          // A blocked SDK, a rotated LIFF id, or a hiccup reaching LINE. None of
+          // those are storage, and saying so would have the user wait for the
+          // wrong thing. An existing cookie still works, so try that first.
+          currentUserAuthenticated = Boolean(session?.authenticated);
+          if (currentUserAuthenticated) {
+            await loadRemoteState().catch(() => {
+              markAppUnavailable("storage");
+              cloudStorageNotice = unavailableMessage();
+              state = emptyRemoteState([]);
+              render();
+            });
+            return;
+          }
+
+          markAppUnavailable("signin");
+          cloudStorageNotice = signInAgainMessage();
+          state = emptyRemoteState([]);
+          render();
+          return;
+        }
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile().catch(() => null);
@@ -3856,6 +3900,9 @@
         }
         if (action === "toggle-group-complete") await toggleCurrentGroupCompleted().catch((error) => showToast(error.message));
         if (action === "delete-group") await deleteCurrentGroup().catch((error) => showToast(error.message));
+        if (action === "restart-line-login") {
+          showToast(restartLineLogin() ? "LINEログインをやり直します" : signInAgainMessage());
+        }
         if (action === "share") {
           await runExclusive("share-settlement", null, shareSettlement).catch(() => showToast("共有できませんでした"));
         }

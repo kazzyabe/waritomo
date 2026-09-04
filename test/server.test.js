@@ -112,8 +112,6 @@ test("bad preview input is the caller's fault, not a 500", async () => {
     undefined, // no body at all
     JSON.stringify({}),
     JSON.stringify({ members: [{ id: "m1" }] }), // needs at least two
-    JSON.stringify(null),
-    JSON.stringify([1, 2, 3]),
     JSON.stringify({
       members: [{ id: "m1" }, { id: "m2" }],
       expenses: [{ payerMemberId: "ghost", amount: "1", debtors: [{ memberId: "m1" }] }],
@@ -128,6 +126,44 @@ test("bad preview input is the caller's fault, not a 500", async () => {
     assert.equal(response.status, 400, `${body} should be a 400`);
     assert.equal((await response.json()).error, "invalid_input");
   }
+});
+
+test("a body that is valid JSON but not an object is rejected for every route", async () => {
+  // Every handler reads fields off the parsed body, so `null`, `[]` and `7`
+  // would each become a TypeError and a logged 500 on whichever route was
+  // missed. These two are the ones that parse a body before any gate, so they
+  // are reachable by a stranger; the rest stop at auth or database config.
+  const routes = ["/api/settlement/preview", "/api/auth/line"];
+
+  for (const path of routes) {
+    for (const body of ["null", "[1,2,3]", "7", '"hello"']) {
+      const response = await request(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body,
+      });
+
+      assert.equal(response.status, 400, `${path} with ${body} should be a 400`);
+      assert.equal((await response.json()).error, "invalid_json");
+    }
+  }
+});
+
+test("an absurdly long number cannot be turned into a much longer answer", async () => {
+  // Unbounded digits let one request inside the body cap block the event loop
+  // on BigInt arithmetic and answer with several times what it sent.
+  const huge = "9".repeat(500000);
+  const response = await postPreview(
+    JSON.stringify({
+      members: [{ id: "a" }, { id: "b" }],
+      expenses: [
+        { payerMemberId: "a", amount: huge, splitMode: "equal", debtors: [{ memberId: "b" }] },
+      ],
+    }),
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "invalid_input");
 });
 
 test("structurally odd preview payloads are still the caller's fault", async () => {
