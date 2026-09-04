@@ -3371,14 +3371,33 @@
         dismissSharePrompt();
       }
 
+      // liff.login() does nothing while LIFF still believes the user is signed
+      // in — and the ID token LIFF holds is exactly what the server rejected.
+      // Dropping the LIFF session first is what forces a fresh token.
+      function restartLineLogin() {
+        if (!window.liff || !config.line?.liffId) return false;
+
+        try {
+          if (liff.isLoggedIn?.()) liff.logout();
+          liff.login({ redirectUri: location.href });
+          return true;
+        } catch (error) {
+          console.error("could not restart the LINE login", error);
+          return false;
+        }
+      }
+
       async function joinInvite() {
         if (!inviteContext) return;
-        if (!requireDatabaseAvailable()) return;
+        // Authentication is checked before availability: a failed sign-in marks
+        // the app unavailable, and stopping at that check would hide the only
+        // route back in behind a message about the database.
         if (!currentUserAuthenticated) {
-          showToast("LINEログイン後に参加できます");
-          if (window.liff && !liff.isLoggedIn?.()) liff.login({ redirectUri: location.href });
+          showToast("LINEログインをやり直します");
+          if (!restartLineLogin()) showToast(signInAgainMessage());
           return;
         }
+        if (!requireDatabaseAvailable()) return;
 
         const selectedMember = document.querySelector('input[name="invite-member"]:checked')?.value ?? "new";
         const inputName = document.getElementById("invite-name")?.value ?? "";
@@ -3662,8 +3681,11 @@
           currentUserAuthenticated = reauthenticated || Boolean(session?.authenticated);
 
           if (!currentUserAuthenticated) {
-            // Deliberately not appUnavailable: that would disable the invite
-            // flow, and the invite flow is what offers the login again.
+            // Nothing that writes can succeed without a session, so the controls
+            // that write are disabled rather than left to fail at the API. The
+            // invite flow stays reachable because it checks authentication
+            // before availability, and it is what offers the login again.
+            appUnavailable = true;
             cloudStorageNotice = signInAgainMessage();
             state = emptyRemoteState([]);
             render();

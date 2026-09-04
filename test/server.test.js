@@ -8,7 +8,8 @@ delete process.env.DATABASE_URL;
 delete process.env.APP_ENV;
 delete process.env.NODE_ENV;
 
-const { handleRequest } = await import("../src/server.js");
+const { handleRequest, respondToError } = await import("../src/server.js");
+const { StoreError } = await import("../src/group-store.js");
 
 let server;
 let origin;
@@ -102,15 +103,29 @@ test("a well-formed body still works", async () => {
   assert.ok(Array.isArray(body.items));
 });
 
-test("an empty body is treated as an empty object", async (t) => {
-  // No body at all reaches calculateSettlement as {}, which rejects it for
-  // having no members — the point is that it parses rather than throwing.
-  t.mock.method(console, "error", () => {});
+test("bad preview input is the caller's fault, not a 500", async () => {
+  // This endpoint is unauthenticated, so answering bad input with 500 would let
+  // anyone fill the log with stack traces and the dashboard with 5xx.
+  const bodies = [
+    undefined, // no body at all
+    JSON.stringify({}),
+    JSON.stringify({ members: [{ id: "m1" }] }), // needs at least two
+    JSON.stringify(null),
+    JSON.stringify([1, 2, 3]),
+    JSON.stringify({
+      members: [{ id: "m1" }, { id: "m2" }],
+      expenses: [{ payerMemberId: "ghost", amount: "1", debtors: [{ memberId: "m1" }] }],
+    }),
+  ];
 
-  const response = await request("/api/settlement/preview", { method: "POST" });
+  for (const body of bodies) {
+    const response = body === undefined
+      ? await request("/api/settlement/preview", { method: "POST" })
+      : await postPreview(body);
 
-  assert.equal(response.status, 500);
-  assert.equal((await response.json()).error, "internal_error");
+    assert.equal(response.status, 400, `${body} should be a 400`);
+    assert.equal((await response.json()).error, "invalid_input");
+  }
 });
 
 test("an oversized declared body is rejected before it is buffered", async () => {
@@ -146,17 +161,75 @@ test("an oversized streamed body is rejected mid-stream", async () => {
   assert.equal((await response.json()).error, "payload_too_large");
 });
 
-test("a 500 says nothing about what actually broke", async (t) => {
-  // calculateSettlement throws a plain Error naming its own invariant; that
-  // string is exactly the kind of internal detail that must not ship out.
-  t.mock.method(console, "error", () => {});
+test("a 500 says nothing about what actually broke", (t) => {
+  // Driven directly rather than through an endpoint, so the guarantee is not
+  // tied to whichever route happens to be able to throw today.
+  const logged = t.mock.method(console, "error", () => {});
+  const written = [];
+  const response = {
+    headersSent: false,
+    writeHead() {},
+    end(body) {
+      written.push(body);
+    },
+    on() {},
+  };
 
-  const response = await postPreview(JSON.stringify({ members: [{ id: "m1" }] }));
+  respondToError(
+    { method: "POST", url: "/api/whatever" },
+    response,
+    new Error('relation "group_members" does not exist'),
+  );
 
-  assert.equal(response.status, 500);
-  assert.deepEqual(await response.json(), {
+  assert.deepEqual(JSON.parse(written[0]), {
     error: "internal_error",
     message: "サーバーエラーが発生しました",
+  });
+  assert.doesNotMatch(written[0], /group_members/);
+
+  // The detail is not discarded, it is moved to where only we can read it.
+  assert.equal(logged.mock.callCount(), 1);
+  assert.match(String(logged.mock.calls[0].arguments.at(-1)), /group_members/);
+});
+
+test("a response already on the wire is not written to twice", (t) => {
+  t.mock.method(console, "error", () => {});
+  let destroyed = false;
+  const response = {
+    headersSent: true,
+    writeHead: () => assert.fail("must not write headers again"),
+    end: () => assert.fail("must not write a body again"),
+    destroy() {
+      destroyed = true;
+    },
+    on() {},
+  };
+
+  respondToError({ method: "GET", url: "/late" }, response, new Error("too late"));
+
+  assert.equal(destroyed, true);
+});
+
+test("a StoreError keeps its own status and message", () => {
+  const written = [];
+  let status;
+  const response = {
+    headersSent: false,
+    writeHead(code) {
+      status = code;
+    },
+    end(body) {
+      written.push(body);
+    },
+    on() {},
+  };
+
+  respondToError({ method: "GET", url: "/x" }, response, new StoreError(404, "group_not_found", "グループが見つかりません"));
+
+  assert.equal(status, 404);
+  assert.deepEqual(JSON.parse(written[0]), {
+    error: "group_not_found",
+    message: "グループが見つかりません",
   });
 });
 

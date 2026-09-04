@@ -1,5 +1,6 @@
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, realpathSync, statSync } from "node:fs";
 import { createServer } from "node:http";
+import { pipeline } from "node:stream";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkDatabaseAvailable, isDatabaseEnabled, migrateDatabase } from "./db.js";
@@ -48,8 +49,10 @@ const contentTypes = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-// No legitimate request here carries a megabyte. Past this the body is either
-// a broken client or someone filling our heap, and reading stops either way.
+// No legitimate request here carries a megabyte. This caps what one request can
+// put on the heap; the rest of an oversized body is still drained by Node once
+// the 413 is written, which is the price of getting the 413 to the client at
+// all — destroying the socket mid-upload reaches them as a connection reset.
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 function sendJson(response, statusCode, body) {
@@ -132,6 +135,22 @@ function settlementInputFromGroup(group) {
   };
 }
 
+// calculateSettlement throws plain Errors for bad input ("At least two members
+// are required"). Left unmapped they become 500s, which lets an unauthenticated
+// caller mint stack traces in our logs and spikes in our 5xx alerting at will.
+function previewSettlement(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new StoreError(400, "invalid_input", "清算のプレビュー入力が正しくありません");
+  }
+
+  try {
+    return calculateSettlement(body);
+  } catch (error) {
+    // The message describes the caller's own payload, so it is safe to echo.
+    throw new StoreError(400, "invalid_input", error instanceof Error ? error.message : "invalid input");
+  }
+}
+
 function splitPath(pathname) {
   return pathname.split("/").filter(Boolean).map(safeDecodeURIComponent);
 }
@@ -142,7 +161,8 @@ function payloadTooLarge() {
 
 // Read the body by hand rather than with `for await`: breaking out of an async
 // iterator destroys the request, which tears the socket down before the 413 can
-// be written. Pausing leaves the connection alive just long enough to answer.
+// be written. Pausing stops us buffering while leaving the connection able to
+// carry the answer.
 function readBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -202,14 +222,12 @@ async function readJson(request) {
 
 function sendFile(response, filePath, headers) {
   response.writeHead(200, headers);
-  const stream = createReadStream(filePath);
-  // `pipe` does not forward read errors, and an unhandled one on a stream would
-  // take the process down. The file can still vanish between stat and open.
-  stream.on("error", (error) => {
-    console.error("static file read failed", filePath, error);
-    response.destroy();
+  // `pipe` neither forwards read errors (an unhandled one would take the
+  // process down) nor destroys the source when the client goes away mid
+  // download, which leaks the file descriptor. `pipeline` does both.
+  pipeline(createReadStream(filePath), response, (error) => {
+    if (error) console.error("static file stream failed", filePath, error);
   });
-  stream.pipe(response);
 }
 
 function serveStatic(request, response) {
@@ -463,15 +481,14 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/settlement/preview") {
-    const body = await readJson(request);
-    sendJson(response, 200, calculateSettlement(body));
+    sendJson(response, 200, previewSettlement(await readJson(request)));
     return;
   }
 
   sendJson(response, 404, { error: "not_found" });
 }
 
-function respondToError(request, response, error) {
+export function respondToError(request, response, error) {
   // Once a response has started there is nothing left to say; writing again
   // would throw ERR_HTTP_HEADERS_SENT out of the error handler itself.
   if (response.headersSent) {
@@ -528,10 +545,21 @@ export async function handleRequest(request, response) {
 }
 
 // Importing this module must not bind a port: the tests drive `handleRequest`
-// through a server of their own.
-const isEntryPoint = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+// through a server of their own. `import.meta.url` is realpath-resolved, so
+// argv[1] has to be too — otherwise launching through a symlink would leave the
+// process exiting 0 with no server and nothing in the log.
+function isEntryPoint() {
+  const entry = process.argv[1];
+  if (!entry) return false;
 
-if (isEntryPoint) {
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   // Fail the deploy rather than the first request that needs a session: a
   // missing SESSION_SECRET is a configuration error, and a revision that
   // cannot sign sessions should never take traffic.
