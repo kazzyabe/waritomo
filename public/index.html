@@ -2946,7 +2946,10 @@
 
       function expensePayloadFromForm(formData) {
         const title = String(formData.get("title") || "").trim();
-        const amount = Number(String(formData.get("amount") || "").replace(/[^\d]/g, ""));
+        // Keep the decimal point: stripping it turned 1234.56 into ¥123,456
+        // without saying so. The server rounds, and rejects anything that is
+        // not a number at all.
+        const amount = Number(String(formData.get("amount") || "").replace(/[^\d.]/g, ""));
         const payerMemberId = String(formData.get("payer") || "");
         const debtorMemberIds = formData.getAll("debtor").map(String);
         return { title, amount, payerMemberId, debtorMemberIds };

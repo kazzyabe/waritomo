@@ -173,6 +173,24 @@ function settlementForGroup(group) {
   }
 }
 
+// Only origin-form targets ("/path?query") mean anything to us. Authority-form
+// ("//host/path") and absolute-form ("http://host/path") make `new URL` read a
+// host out of the target, so the string the router matched and the path we
+// serve stop being the same request — "//api/health" failed the router's
+// startsWith check and then resolved to "/health". Worse, "//" is not a valid
+// URL at all: it threw out of serveStatic before the try block, which any
+// stranger could use to mint stack traces and 5xx on demand.
+function parseRequestTarget(target) {
+  if (typeof target !== "string" || !target.startsWith("/")) return null;
+  if (target.startsWith("//") || target.startsWith("/\\")) return null;
+
+  try {
+    return new URL(target, "http://localhost");
+  } catch {
+    return null;
+  }
+}
+
 function splitPath(pathname) {
   return pathname.split("/").filter(Boolean).map(safeDecodeURIComponent);
 }
@@ -292,15 +310,17 @@ function sendFile(response, filePath, headers) {
   });
 }
 
-function serveStatic(request, response) {
-  const url = new URL(request.url, "http://localhost");
+function serveStatic(response, url) {
   const unsafePath = url.pathname === "/" ? "/index.html" : url.pathname;
   const safePath = normalize(unsafePath).replace(/^(\.\.[/\\])+/, "");
   const filePath = getStaticFilePath(safePath);
-  // Read the extension off what the client asked for, not off safePath: "/" has
-  // already been rewritten to "/index.html" by here, which would send a missing
-  // shell down the 404 branch instead of the one that reports it.
-  const requestNamesAFile = Boolean(extname(url.pathname));
+  const shellPath = join(publicDir, "index.html");
+  // Whether the request names a file, so a missing one is a 404 rather than a
+  // 200 of the app shell. The shell itself is the exception either way it is
+  // asked for — "/" is rewritten to "/index.html" above, and "/index.html" is
+  // named outright — because its absence is a deploy failure worth reporting,
+  // not a missing asset.
+  const requestNamesAFile = Boolean(extname(url.pathname)) && filePath !== shellPath;
 
   try {
     const stats = statSync(filePath);
@@ -323,7 +343,6 @@ function serveStatic(request, response) {
       return;
     }
 
-    const shellPath = join(publicDir, "index.html");
     try {
       statSync(shellPath);
     } catch (error) {
@@ -357,9 +376,7 @@ function getStaticFilePath(safePath) {
   return filePath;
 }
 
-async function handleApi(request, response) {
-  const url = new URL(request.url, "http://localhost");
-
+async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, { ok: true });
     return;
@@ -607,12 +624,18 @@ export function respondToError(request, response, error) {
 
 export async function handleRequest(request, response) {
   try {
-    if (request.url?.startsWith("/api/")) {
-      await handleApi(request, response);
+    const url = parseRequestTarget(request.url);
+    if (!url) {
+      sendJson(response, 400, { error: "invalid_request_target" });
       return;
     }
 
-    serveStatic(request, response);
+    if (url.pathname.startsWith("/api/")) {
+      await handleApi(request, response, url);
+      return;
+    }
+
+    serveStatic(response, url);
   } catch (error) {
     try {
       respondToError(request, response, error);

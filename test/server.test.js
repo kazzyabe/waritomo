@@ -31,6 +31,26 @@ function request(path, options = {}) {
   return fetch(`${origin}${path}`, options);
 }
 
+// fetch normalises "//" and absolute-form targets before they reach the wire,
+// so these have to go out by hand.
+function rawRequest(target) {
+  return new Promise((resolve, reject) => {
+    const socket = connect(server.address().port, "127.0.0.1");
+    let received = "";
+
+    socket.setTimeout(3000, () => {
+      socket.destroy();
+      reject(new Error(`timed out on ${target}`));
+    });
+    socket.on("error", reject);
+    socket.on("data", (chunk) => {
+      received += chunk;
+    });
+    socket.on("close", () => resolve(received));
+    socket.write(`GET ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`);
+  });
+}
+
 const VALID_PREVIEW = {
   baseCurrencyCode: "JPY",
   roundingUnit: "1",
@@ -460,6 +480,29 @@ test("a group carrying an unsettleable expense still settles", () => {
 
   const settled = calculateSettlement(input);
   assert.deepEqual(settled.items, [{ fromMemberId: "m2", toMemberId: "m1", amount: "1500" }]);
+});
+
+test("a request target that is not origin-form is a 400, not a 500", async () => {
+  // `new URL("//", base)` throws, and it used to throw outside the try in
+  // serveStatic — an unauthenticated stack trace generator. The authority and
+  // absolute forms are rejected for a different reason: `new URL` reads a host
+  // out of them, so the router matched one path and serveStatic served another
+  // ("//api/health" resolved to "/health" and answered 200 with the shell).
+  const targets = ["//", "///", "//?a=1", "//:", "//@", "//%", "//[", "/\\/", "//\\",
+    "//api/health", "http://example.com/whatever", "*"];
+
+  for (const target of targets) {
+    const raw = await rawRequest(target);
+    assert.match(raw, /^HTTP\/1\.1 400 /, `${JSON.stringify(target)} should be a 400`);
+    assert.match(raw, /invalid_request_target/);
+  }
+});
+
+test("ordinary targets are unaffected", async () => {
+  for (const [target, expected] of [["/api/health", 200], ["/", 200], ["/robots.txt", 200], ["/nope.js", 404]]) {
+    const raw = await rawRequest(target);
+    assert.match(raw, new RegExp(`^HTTP/1\\.1 ${expected} `), `${target} should be ${expected}`);
+  }
 });
 
 test("unknown API routes are 404", async () => {
