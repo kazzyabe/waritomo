@@ -1660,6 +1660,10 @@
       let editingExpenseId = "";
       let cloudStorageNotice = "";
       let appUnavailable = false;
+      // Why the app is unusable, not just that it is. Waiting fixes a storage
+      // outage; only a fresh login fixes a sign-in failure, and telling someone
+      // to wait for the cloud when their session is the problem strands them.
+      let appUnavailableReason = "storage";
       let inviteContext = parseInviteRoute();
       let invitePreview = null;
       let lineContext = null;
@@ -1906,12 +1910,26 @@
         return useRemote() && !appUnavailable;
       }
 
+      function markAppUnavailable(reason) {
+        appUnavailable = true;
+        appUnavailableReason = reason;
+      }
+
       function unavailableMessage() {
-        return "クラウド保存に接続できません。時間をおいて再度お試しください。";
+        return appUnavailableReason === "signin"
+          ? signInAgainMessage()
+          : "クラウド保存に接続できません。時間をおいて再度お試しください。";
       }
 
       function signInAgainMessage() {
         return "LINEログインをやり直してください。一度アプリを閉じて開き直すと復帰します。";
+      }
+
+      function emptyHomeHint() {
+        if (!appUnavailable) return "下の「グループを作る」を押して、旅行や飲み会の単位で作成してください。";
+        return appUnavailableReason === "signin"
+          ? "LINEログインをやり直すと表示されます。"
+          : "クラウド保存に接続できると表示されます。";
       }
 
       function requireDatabaseAvailable() {
@@ -2040,7 +2058,7 @@
       async function checkStorageStatus() {
         if (config.storage?.mode !== "database") {
           remoteReady = false;
-          appUnavailable = true;
+          markAppUnavailable("storage");
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
           render();
@@ -2282,7 +2300,7 @@
                 `<div class="empty-state">
                   <span class="empty-mark" aria-hidden="true">🧳</span>
                   <strong>グループはまだありません</strong>
-                  <span>${appUnavailable ? "クラウド保存に接続できると表示されます。" : "下の「グループを作る」を押して、旅行や飲み会の単位で作成してください。"}</span>
+                  <span>${escapeHtml(emptyHomeHint())}</span>
                   <button class="button" type="button" data-action="open-group" ${creationDisabled}>グループを作る</button>
                 </div>`
               }
@@ -3371,11 +3389,15 @@
         dismissSharePrompt();
       }
 
-      // liff.login() does nothing while LIFF still believes the user is signed
-      // in — and the ID token LIFF holds is exactly what the server rejected.
-      // Dropping the LIFF session first is what forces a fresh token.
+      // Returns whether a login was actually started. Inside the LINE client the
+      // user is signed in automatically and liff.login() is a documented no-op,
+      // so logging out there would strand them with no way back — reopening the
+      // mini app is what gets a fresh token. In an external browser the LIFF
+      // session has to be dropped first, because login() also does nothing
+      // while LIFF still believes the user is signed in.
       function restartLineLogin() {
         if (!window.liff || !config.line?.liffId) return false;
+        if (liff.isInClient?.()) return false;
 
         try {
           if (liff.isLoggedIn?.()) liff.logout();
@@ -3393,8 +3415,7 @@
         // the app unavailable, and stopping at that check would hide the only
         // route back in behind a message about the database.
         if (!currentUserAuthenticated) {
-          showToast("LINEログインをやり直します");
-          if (!restartLineLogin()) showToast(signInAgainMessage());
+          showToast(restartLineLogin() ? "LINEログインをやり直します" : signInAgainMessage());
           return;
         }
         if (!requireDatabaseAvailable()) return;
@@ -3624,9 +3645,25 @@
         // every response as success left the app believing it was signed in and
         // blamed the resulting 401s on the database being unreachable.
         if (!response.ok || !payload?.authenticated) {
-          throw new Error(payload?.message || "LINEログインに失敗しました");
+          const error = new Error(payload?.message || "LINEログインに失敗しました");
+          error.status = response.status;
+          throw error;
         }
         return payload;
+      }
+
+      // A 5xx or a dropped connection is our side having a bad second, not the
+      // user's token being wrong. Without a retry, one of those on a first
+      // launch — when there is no cookie to fall back on — leaves the app dead
+      // until the user thinks to restart it.
+      async function authenticateWithLineOnce() {
+        try {
+          return await authenticateWithLine();
+        } catch (error) {
+          if (error.status >= 400 && error.status < 500) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          return authenticateWithLine();
+        }
       }
 
       async function initializeMiniApp() {
@@ -3645,7 +3682,7 @@
 
         if (!config.line.liffId) {
           await loadRemoteState().catch(() => {
-            appUnavailable = true;
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3655,7 +3692,7 @@
 
         if (!window.liff) {
           if (session?.authenticated) await loadRemoteState().catch(() => {
-            appUnavailable = true;
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3669,7 +3706,7 @@
           const profile = await liff.getProfile().catch(() => null);
           if (profile?.displayName) currentUserName = profile.displayName;
 
-          const reauthenticated = await authenticateWithLine().then(
+          const reauthenticated = await authenticateWithLineOnce().then(
             () => true,
             (error) => {
               console.error("line authentication failed", error);
@@ -3685,7 +3722,7 @@
             // that write are disabled rather than left to fail at the API. The
             // invite flow stays reachable because it checks authentication
             // before availability, and it is what offers the login again.
-            appUnavailable = true;
+            markAppUnavailable("signin");
             cloudStorageNotice = signInAgainMessage();
             state = emptyRemoteState([]);
             render();
@@ -3694,7 +3731,7 @@
 
           render();
           await loadRemoteState().catch(() => {
-            appUnavailable = true;
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3703,7 +3740,7 @@
         }
 
         if (session?.authenticated) await loadRemoteState().catch(() => {
-          appUnavailable = true;
+          markAppUnavailable("storage");
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
           render();
@@ -3886,7 +3923,7 @@
       render();
       refreshSettlement();
       initializeMiniApp().catch(() => {
-        appUnavailable = true;
+        markAppUnavailable("storage");
         cloudStorageNotice = unavailableMessage();
         state = emptyRemoteState([]);
         render();

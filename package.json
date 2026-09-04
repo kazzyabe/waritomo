@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "db:migrate": "node src/migrate.js",
-    "start": "node src/server.js",
+    "start": "node src/main.js",
     "test": "node --test"
   },
   "engines": {

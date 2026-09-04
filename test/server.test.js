@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { connect } from "node:net";
 import { after, before, test } from "node:test";
 
 // The server module reads these at request time, and a stray DATABASE_URL in
@@ -10,6 +11,7 @@ delete process.env.NODE_ENV;
 
 const { handleRequest, respondToError } = await import("../src/server.js");
 const { StoreError } = await import("../src/group-store.js");
+const { LineAuthError } = await import("../src/line-auth.js");
 
 let server;
 let origin;
@@ -138,6 +140,52 @@ test("an oversized declared body is rejected before it is buffered", async () =>
   });
 });
 
+test("a rejected upload does not wedge the connection behind it", async () => {
+  // Attaching a data listener marks the request consumed, so Node stops
+  // auto-draining it. If the rest of a rejected body is never read, the socket
+  // sits half-full: the 413 arrives, and then every later request on that
+  // keep-alive connection hangs until the server times it out.
+  const body = "x".repeat(2 * 1024 * 1024);
+  const port = server.address().port;
+
+  const replies = await new Promise((resolve, reject) => {
+    const socket = connect(port, "127.0.0.1");
+    let received = "";
+
+    socket.setTimeout(5000, () => {
+      socket.destroy();
+      reject(new Error(`connection wedged; only got: ${received.slice(0, 120)}`));
+    });
+    socket.on("error", reject);
+    socket.on("data", (chunk) => {
+      received += chunk;
+      // Wait for the 413 and then the health check behind it.
+      if (received.includes('{"ok":true}')) {
+        socket.destroy();
+        resolve(received);
+      }
+    });
+
+    socket.write(
+      "POST /api/settlement/preview HTTP/1.1\r\n" +
+        "Host: 127.0.0.1\r\n" +
+        "Content-Type: application/json\r\n" +
+        "Transfer-Encoding: chunked\r\n\r\n",
+    );
+    for (let sent = 0; sent < body.length; sent += 65536) {
+      const chunk = body.slice(sent, sent + 65536);
+      socket.write(`${chunk.length.toString(16)}\r\n${chunk}\r\n`);
+    }
+    socket.write("0\r\n\r\n");
+    socket.write("GET /api/health HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+  });
+
+  assert.match(replies, /HTTP\/1\.1 413/);
+  assert.match(replies, /payload_too_large/);
+  // The second response is the point: the connection survived the rejection.
+  assert.match(replies, /HTTP\/1\.1 200/);
+});
+
 test("an oversized streamed body is rejected mid-stream", async () => {
   // No content-length, so the limit has to hold while the body is arriving.
   const chunk = "x".repeat(64 * 1024);
@@ -210,27 +258,58 @@ test("a response already on the wire is not written to twice", (t) => {
   assert.equal(destroyed, true);
 });
 
-test("a StoreError keeps its own status and message", () => {
+function collectResponse() {
   const written = [];
-  let status;
-  const response = {
+  return {
+    written,
+    status: undefined,
     headersSent: false,
     writeHead(code) {
-      status = code;
+      this.status = code;
     },
     end(body) {
       written.push(body);
     },
     on() {},
   };
+}
+
+test("a StoreError keeps its own status and message", () => {
+  const response = collectResponse();
 
   respondToError({ method: "GET", url: "/x" }, response, new StoreError(404, "group_not_found", "グループが見つかりません"));
 
-  assert.equal(status, 404);
-  assert.deepEqual(JSON.parse(written[0]), {
+  assert.equal(response.status, 404);
+  assert.deepEqual(JSON.parse(response.written[0]), {
     error: "group_not_found",
     message: "グループが見つかりません",
   });
+});
+
+test("a 4xx LineAuthError reaches the caller, a 5xx one does not", (t) => {
+  // The 4xx is about the caller's token and they need to read it. The 5xx is
+  // our own misconfiguration — "LINE_CHANNEL_ID is not configured" names an
+  // environment variable, and `details` carries the raw upstream response.
+  const rejected = collectResponse();
+  respondToError({ method: "POST", url: "/api/auth/line" }, rejected, new LineAuthError("IDトークンが無効です", 401));
+
+  assert.equal(rejected.status, 401);
+  assert.equal(JSON.parse(rejected.written[0]).message, "IDトークンが無効です");
+
+  t.mock.method(console, "error", () => {});
+  const misconfigured = collectResponse();
+  respondToError(
+    { method: "POST", url: "/api/auth/line" },
+    misconfigured,
+    new LineAuthError("LINE_CHANNEL_ID is not configured", 500),
+  );
+
+  assert.equal(misconfigured.status, 500);
+  assert.deepEqual(JSON.parse(misconfigured.written[0]), {
+    error: "internal_error",
+    message: "サーバーエラーが発生しました",
+  });
+  assert.doesNotMatch(misconfigured.written[0], /LINE_CHANNEL_ID/);
 });
 
 test("a malformed cookie does not break the request", async () => {

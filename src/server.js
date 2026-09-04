@@ -1,8 +1,8 @@
-import { createReadStream, realpathSync, statSync } from "node:fs";
+import { createReadStream, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { pipeline } from "node:stream";
 import { extname, join, normalize } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { checkDatabaseAvailable, isDatabaseEnabled, migrateDatabase } from "./db.js";
 import { getDatabaseUserByLineUserId, upsertDatabaseLineUser } from "./db-users.js";
 import { safeDecodeURIComponent } from "./decode.js";
@@ -50,9 +50,9 @@ const contentTypes = {
 };
 
 // No legitimate request here carries a megabyte. This caps what one request can
-// put on the heap; the rest of an oversized body is still drained by Node once
-// the 413 is written, which is the price of getting the 413 to the client at
-// all — destroying the socket mid-upload reaches them as a connection reset.
+// put on the heap. The rest of a rejected body still has to come down the wire
+// and be thrown away: destroying the socket instead reaches the client as a
+// connection reset rather than as the 413 explaining what went wrong.
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
 function sendJson(response, statusCode, body) {
@@ -161,8 +161,7 @@ function payloadTooLarge() {
 
 // Read the body by hand rather than with `for await`: breaking out of an async
 // iterator destroys the request, which tears the socket down before the 413 can
-// be written. Pausing stops us buffering while leaving the connection able to
-// carry the answer.
+// be written. Reading it manually keeps the connection able to carry the answer.
 function readBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -181,8 +180,14 @@ function readBody(request) {
     function onData(chunk) {
       size += chunk.length;
       if (size > MAX_REQUEST_BODY_BYTES) {
-        request.pause();
         settle(reject, payloadTooLarge());
+        // Attaching a `data` listener already set the request's internal
+        // `_consuming` flag, and Node only auto-drains a body it never started
+        // consuming. Without this the rest of the upload is never read, so the
+        // response finishes but the connection sits wedged until it times out —
+        // and on a keep-alive connection every later request behind it hangs.
+        // `settle` has removed our listeners, so resuming discards the rest.
+        request.resume();
         return;
       }
       chunks.push(chunk);
@@ -497,7 +502,10 @@ export function respondToError(request, response, error) {
     return;
   }
 
-  if (error instanceof LineAuthError) {
+  // Only the 4xx side of this is about the caller's token. A 5xx LineAuthError
+  // is our own misconfiguration ("LINE_CHANNEL_ID is not configured") or a raw
+  // upstream response in `details`, and it falls through to the generic reply.
+  if (error instanceof LineAuthError && error.statusCode < 500) {
     sendJson(response, error.statusCode, {
       error: "line_auth_error",
       message: error.message,
@@ -544,22 +552,12 @@ export async function handleRequest(request, response) {
   }
 }
 
-// Importing this module must not bind a port: the tests drive `handleRequest`
-// through a server of their own. `import.meta.url` is realpath-resolved, so
-// argv[1] has to be too — otherwise launching through a symlink would leave the
-// process exiting 0 with no server and nothing in the log.
-function isEntryPoint() {
-  const entry = process.argv[1];
-  if (!entry) return false;
-
-  try {
-    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
-  } catch {
-    return false;
-  }
-}
-
-if (isEntryPoint()) {
+// Importing this module must not bind a port — the tests drive `handleRequest`
+// through a server of their own — so starting up is an explicit call that only
+// src/main.js makes. Detecting "am I the entry point?" from argv was the
+// alternative, and every way that guess can be wrong exits 0 with no server
+// and nothing in the log.
+export async function startServer() {
   // Fail the deploy rather than the first request that needs a session: a
   // missing SESSION_SECRET is a configuration error, and a revision that
   // cannot sign sessions should never take traffic.
@@ -577,7 +575,8 @@ if (isEntryPoint()) {
     }
   }
 
-  createServer(handleRequest).listen(port, host, () => {
-    console.log(`waritomo listening on ${host}:${port}`);
-  });
+  const server = createServer(handleRequest);
+  await new Promise((resolve) => server.listen(port, host, resolve));
+  console.log(`waritomo listening on ${host}:${port}`);
+  return server;
 }
