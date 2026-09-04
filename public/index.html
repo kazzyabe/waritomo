@@ -1283,6 +1283,27 @@
         font-weight: 900;
       }
 
+      .chip.chip-self {
+        padding-left: 5px;
+        border-color: var(--line);
+      }
+
+      .chip-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: var(--line);
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .section-note {
+        padding: 0 14px 14px;
+      }
+
       .chip-remove {
         display: inline-grid;
         place-items: center;
@@ -1554,7 +1575,7 @@
             <input id="new-group-name" name="name" maxlength="28" required placeholder="例: 沖縄旅行" />
           </label>
           <div class="chip-field">
-            <label for="new-member-name">メンバー</label>
+            <label id="new-member-label" for="new-member-name">メンバー</label>
             <div class="chip-input-row">
               <input id="new-member-name" maxlength="16" placeholder="例: かず" />
               <button id="add-new-member" class="button secondary" type="button">追加</button>
@@ -1705,6 +1726,7 @@
         formError: document.getElementById("form-error"),
         newGroupName: document.getElementById("new-group-name"),
         newMemberName: document.getElementById("new-member-name"),
+        newMemberLabel: document.getElementById("new-member-label"),
         addNewMemberButton: document.getElementById("add-new-member"),
         newGroupMemberChips: document.getElementById("new-group-member-chips"),
         newGroupMemberCount: document.getElementById("new-group-member-count"),
@@ -2658,6 +2680,11 @@
               <span class="tag">${state.members.length}人</span>
             </div>
             <div class="section-body">${rows}</div>
+            ${
+              currentUserMember()
+                ? `<p class="hint section-note">自分の行が違う人になっている場合は「解除」を押してください。そのメンバーは招待リンクから本人が選べるようになります。</p>`
+                : ""
+            }
           </div>
           <form id="member-form" class="section" autocomplete="off">
             <div class="section-head">
@@ -2773,20 +2800,29 @@
         elements.amount.focus();
       }
 
+      function selfNamePlaceholder() {
+        return currentUserName && currentUserName !== "あなた" ? `例: ${currentUserName}` : "例: かず";
+      }
+
       function renderNewGroupMembers() {
+        // The server links the first member to the creator (createGroup in
+        // src/group-store.js), so the first chip is marked as "you" and the
+        // badge visibly moves if that chip is removed.
         elements.newGroupMemberChips.innerHTML = newGroupMemberNames
           .map(
             (name, index) => `
-              <span class="chip">${escapeHtml(name)}<button class="chip-remove" type="button" data-remove-new-member="${index}" aria-label="${escapeHtml(name)}を外す">×</button></span>`,
+              <span class="chip${index === 0 ? " chip-self" : ""}">${index === 0 ? `<span class="chip-badge">あなた</span>` : ""}${escapeHtml(name)}<button class="chip-remove" type="button" data-remove-new-member="${index}" aria-label="${escapeHtml(name)}を外す">×</button></span>`,
           )
           .join("");
 
         const count = newGroupMemberNames.length;
+        elements.newMemberLabel.textContent = count === 0 ? "あなたの名前" : "一緒に割り勘する人";
+        elements.newMemberName.placeholder = count === 0 ? selfNamePlaceholder() : "例: さき";
         elements.newGroupMemberCount.textContent =
           count === 0
-            ? "自分を含めて2人以上を追加してください。"
+            ? "最初にあなたの名前を入れてください。ニックネームでも構いません。"
             : count < 2
-              ? "1人。あと1人以上を追加してください。"
+              ? "1人。一緒に割り勘する人を追加してください。"
               : `${count}人。メンバーはあとからでも追加できます。`;
         elements.createGroupSubmit.disabled = count < 2;
       }
@@ -2821,7 +2857,9 @@
         elements.groupFormError.textContent = "";
         elements.newGroupName.value = "";
         elements.newMemberName.value = "";
-        newGroupMemberNames = state.members.length ? state.members.map((member) => member.name).slice(0, 3) : [];
+        // Never seed from the open group: if you joined someone else's group,
+        // their creator's name would land in the slot that becomes "you".
+        newGroupMemberNames = [];
         renderNewGroupMembers();
         elements.groupSheet.hidden = false;
         elements.newGroupName.focus();

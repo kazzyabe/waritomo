@@ -421,6 +421,10 @@ export async function createGroup(user, input) {
       [groupId, user.id, groupName, createInviteToken()],
     );
 
+    // The first name belongs to whoever is creating the group, so it is linked
+    // to their LINE account immediately. Everyone else stays unlinked until
+    // they claim themselves through the invite link. The creation form marks
+    // the first entry as "you" so this ordering is not a hidden assumption.
     for (const [index, name] of memberNames.entries()) {
       await client.query(
         `
