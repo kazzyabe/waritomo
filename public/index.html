@@ -9,24 +9,67 @@
     <style>
       :root {
         color-scheme: light;
+        /* Hiragino Maru Gothic is the rounded Japanese face shipped on iOS/macOS.
+           Android falls back to the system sans; weight carries the tone there. */
         font-family:
+          "Hiragino Maru Gothic ProN",
+          "Hiragino Maru Gothic Pro",
           system-ui,
           -apple-system,
           BlinkMacSystemFont,
           "Segoe UI",
           sans-serif;
-        background: #eef3f6;
-        color: #162126;
+        background: #ffffff;
+        color: var(--ink);
+        /* Two hue families carry the whole interface.
+           GREEN  = identity, primary action, money coming to you.
+           BLUE   = information, money you owe, secondary emphasis.
+           RED    = destructive actions only. Nothing else is red.
+           Every value below clears WCAG AA on white; the one documented
+           exception is white-on-green inside a filled button. */
+
+        /* green */
         --line: #06c755;
+        --line-edge: #04a548;
         --line-dark: #07863e;
-        --ink: #162126;
-        --muted: #69777f;
-        --soft: #f5f8f9;
-        --border: #e3eaee;
-        --blue: #2f7de1;
-        --coral: #e66d56;
-        --yellow: #f4bc41;
+        --line-tint: #f0fbf4;
+        --line-border: #bfeacf;
+
+        /* blue */
+        --blue: #1878b8;
+        --blue-tint: #f1f7fb;
+        --blue-border: #cde3f2;
+
+        /* neutrals */
+        --ink: #3c3c3c;
+        --muted: #767676;
+        --soft: #f7f9f8;
+        --border: #e5e5e5;
+        --border-edge: #d5d5d5;
         --panel: #ffffff;
+
+        /* problems: destructive actions, failures, validation errors */
+        --danger: #c4462f;
+        --danger-border: #f7d5cd;
+
+        /* disabled */
+        --off: #efefef;
+        --off-edge: #dedede;
+        --off-ink: #b0b0b0;
+
+        /* Member tones sample a green-to-blue arc (hue 138 to 220) but are
+           ordered by maximum separation, so a 2-person group reads green vs
+           blue rather than two neighbouring greens. White text holds at
+           5.1:1 or better on every one. */
+        --tone-0: #157f35; /* 138 green  */
+        --tone-1: #2171b8; /* 208 blue   */
+        --tone-2: #147b74; /* 176 teal   */
+        --tone-3: #2b63d4; /* 220 indigo */
+        --tone-4: #1a7d58; /* 158 moss   */
+        --tone-5: #167795; /* 194 cyan   */
+
+        --radius: 16px;
+        --radius-sm: 12px;
       }
 
       * {
@@ -39,15 +82,13 @@
 
       html {
         min-height: 100%;
-        background: #dfe9ed;
+        background: #ffffff;
       }
 
       body {
         min-height: 100%;
         margin: 0;
-        background:
-          linear-gradient(180deg, rgba(6, 199, 85, 0.08), transparent 240px),
-          #eef3f6;
+        background: #ffffff;
       }
 
       body.interstitial-open {
@@ -79,7 +120,7 @@
         min-height: 100vh;
         margin: 0 auto;
         padding: max(env(safe-area-inset-top), 10px) 16px 28px;
-        background: #fbfcfc;
+        background: #ffffff;
       }
 
       .topbar {
@@ -95,7 +136,7 @@
         max-width: 100%;
         padding: 0;
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         background: transparent;
         color: inherit;
         font: inherit;
@@ -115,12 +156,6 @@
         min-width: 0;
       }
 
-      .brand small {
-        color: var(--line-dark);
-        font-size: 11px;
-        font-weight: 800;
-      }
-
       h1,
       h2,
       h3,
@@ -129,12 +164,12 @@
       }
 
       h1 {
-        font-size: 25px;
+        font-size: 26px;
         line-height: 1.18;
       }
 
       h2 {
-        font-size: 18px;
+        font-size: 19px;
         line-height: 1.35;
       }
 
@@ -164,12 +199,9 @@
         display: grid;
         gap: 16px;
         padding: 16px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background:
-          linear-gradient(135deg, rgba(6, 199, 85, 0.13), rgba(47, 125, 225, 0.08)),
-          #ffffff;
-        box-shadow: 0 10px 28px rgba(34, 52, 61, 0.07);
+        border: 2px solid var(--line-border);
+        border-radius: var(--radius);
+        background: var(--line-tint);
       }
 
       .home-hero-head {
@@ -188,14 +220,14 @@
       .home-kpi {
         display: inline-flex;
         align-items: center;
-        min-height: 30px;
-        padding: 0 10px;
-        border: 1px solid rgba(6, 199, 85, 0.18);
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.68);
-        color: #234049;
+        min-height: 32px;
+        padding: 0 12px;
+        border: 2px solid var(--line-border);
+        border-radius: 999px;
+        background: #ffffff;
+        color: var(--line-dark);
         font-size: 12px;
-        font-weight: 850;
+        font-weight: 900;
       }
 
       .home-row {
@@ -204,17 +236,17 @@
         align-items: center;
         gap: 12px;
         width: 100%;
-        min-height: 74px;
-        padding: 13px 14px;
+        min-height: 76px;
+        padding: 14px;
         border: 0;
-        border-top: 1px solid #edf2f4;
+        border-top: 2px solid var(--border);
         background: #ffffff;
         color: var(--ink);
         text-align: left;
       }
 
       .home-row:active {
-        background: #f4faf6;
+        background: var(--line-tint);
       }
 
       .home-row .row-main:last-child {
@@ -251,24 +283,24 @@
       }
 
       .yads-slot:empty {
-        border-radius: 8px;
-        background: #f7fafb;
+        border-radius: var(--radius);
+        background: var(--soft);
       }
 
       .notice {
         display: grid;
         gap: 5px;
-        padding: 12px 14px;
-        border: 1px solid #f1dac2;
-        border-radius: 8px;
-        background: #fff8ef;
-        color: #704714;
+        padding: 14px;
+        border: 2px solid var(--danger-border);
+        border-radius: var(--radius);
+        background: #ffffff;
+        color: var(--ink);
         font-size: 13px;
         font-weight: 750;
       }
 
       .notice strong {
-        color: #573508;
+        color: var(--danger);
       }
 
       .inline-actions {
@@ -284,32 +316,32 @@
 
       .claim-card {
         display: grid;
-        grid-template-columns: 18px 1fr;
+        grid-template-columns: 20px 1fr;
         align-items: center;
-        gap: 8px;
-        min-height: 42px;
-        padding: 8px 10px;
-        border: 1px solid #dfe8ec;
-        border-radius: 8px;
+        gap: 10px;
+        min-height: 50px;
+        padding: 8px 12px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: var(--ink);
         font-size: 14px;
-        font-weight: 850;
+        font-weight: 900;
+        box-shadow: 0 2px 0 var(--border-edge);
       }
 
       .claim-card input {
-        width: 18px;
-        min-height: 18px;
+        width: 20px;
+        min-height: 20px;
         accent-color: var(--line);
       }
 
       .group-panel,
       .section,
       .sheet-panel {
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
         background: var(--panel);
-        box-shadow: 0 10px 28px rgba(34, 52, 61, 0.07);
       }
 
       .group-panel {
@@ -357,11 +389,11 @@
 
       .group-picker {
         width: min(100%, 230px);
-        min-height: 36px;
+        min-height: 42px;
         margin-top: 4px;
-        padding: 0 10px;
-        font-size: 13px;
-        font-weight: 850;
+        padding: 0 12px;
+        font-size: 14px;
+        font-weight: 900;
       }
 
       .caption {
@@ -383,22 +415,28 @@
         width: 40px;
         height: 40px;
         flex: 0 0 auto;
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: var(--ink);
+        box-shadow: 0 3px 0 var(--border-edge);
+      }
+
+      .icon-button:active:not(:disabled) {
+        transform: translateY(3px);
+        box-shadow: 0 0 0 var(--border-edge);
       }
 
       .icon-button.success {
-        border-color: #bee7ca;
-        background: #ecf9f1;
-        color: #087a39;
+        border-color: var(--line-border);
+        color: var(--line-dark);
+        box-shadow: 0 3px 0 var(--line-border);
       }
 
       .icon-button.danger {
-        border-color: #f3d5ce;
-        background: #fff3f0;
-        color: #bf4b36;
+        border-color: var(--danger-border);
+        color: var(--danger);
+        box-shadow: 0 3px 0 var(--danger-border);
       }
 
       .icon {
@@ -425,10 +463,9 @@
         width: min(100%, 448px);
         margin: 0 auto;
         padding: 14px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
         background: #ffffff;
-        box-shadow: 0 18px 48px rgba(22, 33, 38, 0.18);
       }
 
       .app-menu-head {
@@ -447,14 +484,14 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        min-height: 44px;
-        padding: 0 12px;
-        border: 1px solid #e5edf1;
-        border-radius: 8px;
-        background: #f7fafb;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: #ffffff;
         color: var(--ink);
         font-size: 14px;
-        font-weight: 850;
+        font-weight: 900;
         text-decoration: none;
       }
 
@@ -472,7 +509,7 @@
         display: grid;
         gap: 8px;
         padding-top: 12px;
-        border-top: 1px solid var(--border);
+        border-top: 2px solid var(--border);
       }
 
       .app-menu-info-row {
@@ -499,19 +536,41 @@
       .avatar {
         display: inline-grid;
         place-items: center;
-        width: 34px;
-        height: 34px;
-        border: 2px solid #ffffff;
+        width: 36px;
+        height: 36px;
+        border: 3px solid #ffffff;
         border-radius: 50%;
+        background: var(--tone-0);
         color: #ffffff;
         font-size: 13px;
         font-weight: 900;
-        box-shadow: 0 4px 12px rgba(22, 33, 38, 0.13);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.07);
+      }
+
+      .avatar.tone-1 {
+        background: var(--tone-1);
+      }
+
+      .avatar.tone-2 {
+        background: var(--tone-2);
+      }
+
+      .avatar.tone-3 {
+        background: var(--tone-3);
+      }
+
+      .avatar.tone-4 {
+        background: var(--tone-4);
+      }
+
+      .avatar.tone-5 {
+        background: var(--tone-5);
       }
 
       .avatar.small {
-        width: 28px;
-        height: 28px;
+        width: 30px;
+        height: 30px;
+        border-width: 2px;
         font-size: 11px;
       }
 
@@ -529,10 +588,10 @@
 
       .metric {
         min-width: 0;
-        padding: 12px;
-        border: 1px solid #e7edf1;
-        border-radius: 8px;
-        background: var(--soft);
+        padding: 12px 14px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        background: #ffffff;
       }
 
       .metric strong {
@@ -544,11 +603,16 @@
       }
 
       .metric.positive strong {
-        color: var(--blue);
+        color: var(--line-dark);
       }
 
       .metric.negative strong {
-        color: var(--coral);
+        color: var(--blue);
+      }
+
+      .metric.unlinked {
+        border-color: var(--line-border);
+        background: var(--line-tint);
       }
 
       .actions {
@@ -558,53 +622,73 @@
         margin: 12px 0 14px;
       }
 
+      /* Sticker button: a flat fill with a solid bottom edge that collapses on
+         press. The edge is an offset, not a blur, so the surface stays flat. */
       .button {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 8px;
-        min-height: 48px;
-        border: 0;
-        border-radius: 8px;
+        min-height: 50px;
+        padding: 0 16px;
+        border: 2px solid transparent;
+        border-radius: var(--radius);
         background: var(--line);
         color: #ffffff;
         font-size: 15px;
         font-weight: 900;
         text-decoration: none;
+        box-shadow: 0 4px 0 var(--line-edge);
       }
 
       .button.secondary {
-        border: 1px solid #cdebd8;
-        background: #eefaf2;
+        border-color: var(--line-border);
+        background: #ffffff;
         color: var(--line-dark);
+        box-shadow: 0 4px 0 var(--line-border);
       }
 
       .button.subtle {
-        border: 1px solid var(--border);
+        border-color: var(--border);
         background: #ffffff;
         color: var(--ink);
+        box-shadow: 0 4px 0 var(--border-edge);
       }
 
       .button.danger {
-        border: 1px solid #f3d5ce;
-        background: #fff3f0;
-        color: #c84932;
+        border-color: var(--danger-border);
+        background: #ffffff;
+        color: var(--danger);
+        box-shadow: 0 4px 0 var(--danger-border);
+      }
+
+      .button:disabled {
+        background: var(--off);
+        border-color: var(--off);
+        color: var(--off-ink);
+        box-shadow: 0 4px 0 var(--off-edge);
+        opacity: 1;
+      }
+
+      .button:active:not(:disabled) {
+        transform: translateY(4px);
+        box-shadow: 0 0 0 currentColor;
       }
 
       .tabs {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-        padding: 4px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        background: #ecf1f3;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        padding: 6px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        background: #ffffff;
       }
 
       .tab {
-        min-height: 38px;
+        min-height: 42px;
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--radius-sm);
         background: transparent;
         color: var(--muted);
         font-size: 14px;
@@ -612,9 +696,8 @@
       }
 
       .tab.active {
-        background: #ffffff;
-        color: var(--ink);
-        box-shadow: 0 3px 10px rgba(34, 52, 61, 0.08);
+        background: var(--line-tint);
+        color: var(--line-dark);
       }
 
       .view {
@@ -632,7 +715,11 @@
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 15px 14px 10px;
+        padding: 16px 14px 10px;
+      }
+
+      .section-head h2 {
+        color: var(--line-dark);
       }
 
       .section-body {
@@ -647,9 +734,9 @@
         display: grid;
         align-items: center;
         gap: 12px;
-        min-height: 66px;
-        padding: 12px 14px;
-        border-top: 1px solid #edf2f4;
+        min-height: 68px;
+        padding: 13px 14px;
+        border-top: 2px solid var(--border);
       }
 
       .expense-row {
@@ -662,7 +749,7 @@
         gap: 4px;
         min-height: 128px;
         padding: 12px 14px;
-        border-top: 1px solid #edf2f4;
+        border-top: 2px solid var(--border);
         background: #ffffff;
       }
 
@@ -677,8 +764,8 @@
       }
 
       .expense-yads-slot:empty {
-        border-radius: 8px;
-        background: #f7fafb;
+        border-radius: var(--radius);
+        background: var(--soft);
       }
 
       .settlement-row {
@@ -686,11 +773,11 @@
       }
 
       .settlement-row.with-check {
-        grid-template-columns: 34px 1fr auto;
+        grid-template-columns: 38px 1fr auto;
       }
 
       .settlement-row.confirmed {
-        background: #f5faf7;
+        background: var(--line-tint);
       }
 
       .member-row {
@@ -745,84 +832,117 @@
         white-space: nowrap;
       }
 
+      .row-amount.positive {
+        color: var(--line-dark);
+      }
+
+      .row-amount.negative {
+        color: var(--blue);
+      }
+
       .tag {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 24px;
-        padding: 0 8px;
-        border-radius: 6px;
-        background: #eef5fb;
-        color: #2f6cb9;
+        min-height: 26px;
+        padding: 0 10px;
+        border: 2px solid var(--blue-border);
+        border-radius: 999px;
+        background: #ffffff;
+        color: var(--blue);
         font-size: 12px;
         font-weight: 900;
         white-space: nowrap;
       }
 
       .tag.complete {
-        border: 1px solid #bee7ca;
-        background: #ecf9f1;
-        color: #087a39;
+        border-color: var(--line-border);
+        color: var(--line-dark);
       }
 
       .empty-state {
         display: grid;
-        gap: 8px;
-        padding: 28px 18px;
+        gap: 10px;
+        justify-items: center;
+        padding: 32px 20px;
         color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.55;
         text-align: center;
       }
 
       .empty-state strong {
         color: var(--ink);
+        font-size: 16px;
+      }
+
+      .empty-state .button {
+        width: min(100%, 260px);
+        margin-top: 4px;
+      }
+
+      .empty-mark {
+        display: grid;
+        place-items: center;
+        width: 64px;
+        height: 64px;
+        border: 2px solid var(--border);
+        border-radius: 50%;
+        background: var(--soft);
+        font-size: 30px;
+        line-height: 1;
       }
 
       .mini-action {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 32px;
-        padding: 0 10px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        min-height: 34px;
+        padding: 0 12px;
+        border: 2px solid var(--border);
+        border-radius: 999px;
         background: #ffffff;
         color: var(--ink);
         font-size: 12px;
         font-weight: 900;
+        box-shadow: 0 2px 0 var(--border-edge);
+      }
+
+      .mini-action:active {
+        transform: translateY(2px);
+        box-shadow: 0 0 0 var(--border-edge);
       }
 
       .mini-action.danger {
-        color: #bf4b36;
+        border-color: var(--danger-border);
+        color: var(--danger);
+        box-shadow: 0 2px 0 var(--danger-border);
       }
 
       .icon-check {
         display: inline-grid;
         place-items: center;
-        width: 30px;
-        height: 30px;
-        border: 1px solid #dce7df;
-        border-radius: 8px;
+        width: 34px;
+        height: 34px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: transparent;
       }
 
       .icon-check.checked {
-        border-color: #b8e8c9;
-        background: #eaf9ef;
-        color: var(--line-dark);
+        border-color: var(--line);
+        background: var(--line);
+        color: #ffffff;
       }
 
       .share-bar {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
         gap: 10px;
-        padding: 12px 14px 14px;
-        border-top: 1px solid #edf2f4;
-      }
-
-      .field-grid {
-        display: grid;
-        gap: 12px;
+        padding: 14px;
+        border-top: 2px solid var(--border);
       }
 
       label {
@@ -844,19 +964,21 @@
       select,
       textarea {
         width: 100%;
-        min-height: 46px;
-        border: 1px solid #d9e3e8;
-        border-radius: 8px;
+        min-height: 50px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: var(--ink);
-        padding: 0 12px;
-        font-size: 15px;
+        padding: 0 14px;
+        /* 16px keeps iOS Safari from zooming the viewport on focus */
+        font-size: 16px;
+        font-weight: 700;
         outline: none;
       }
 
       textarea {
         min-height: 92px;
-        padding: 12px;
+        padding: 12px 14px;
         line-height: 1.5;
         resize: vertical;
       }
@@ -865,7 +987,12 @@
       select:focus,
       textarea:focus {
         border-color: var(--line);
-        box-shadow: 0 0 0 3px rgba(6, 199, 85, 0.13);
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+        font-weight: 700;
       }
 
       .checkbox-grid {
@@ -877,21 +1004,30 @@
       .check-card {
         display: flex;
         align-items: center;
-        gap: 8px;
-        min-height: 42px;
-        padding: 8px 10px;
-        border: 1px solid #dfe8ec;
-        border-radius: 8px;
+        gap: 10px;
+        min-height: 50px;
+        padding: 8px 12px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: var(--ink);
         font-size: 14px;
-        font-weight: 850;
+        font-weight: 900;
+        box-shadow: 0 2px 0 var(--border-edge);
       }
 
       .check-card input {
-        width: 18px;
-        min-height: 18px;
+        width: 20px;
+        min-height: 20px;
         accent-color: var(--line);
+      }
+
+      .check-card:has(input:checked),
+      .claim-card:has(input:checked) {
+        border-color: var(--line);
+        background: var(--line-tint);
+        color: var(--line-dark);
+        box-shadow: 0 2px 0 var(--line-border);
       }
 
       .sheet {
@@ -920,7 +1056,7 @@
         justify-content: space-between;
         gap: 12px;
         padding: 16px;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 2px solid var(--border);
         background: #ffffff;
       }
 
@@ -951,8 +1087,8 @@
         justify-self: end;
         width: 44px;
         height: 44px;
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 8px;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        border-radius: var(--radius-sm);
         background: #ffffff;
         color: var(--ink);
       }
@@ -965,7 +1101,7 @@
 
       .error-text {
         min-height: 18px;
-        color: #c84932;
+        color: var(--danger);
         font-size: 12px;
         font-weight: 800;
       }
@@ -981,13 +1117,192 @@
         min-height: 44px;
         max-width: 448px;
         margin: 0 auto;
-        padding: 10px 14px;
-        border-radius: 8px;
-        background: #162126;
+        padding: 12px 16px;
+        border-radius: var(--radius);
+        background: var(--ink);
         color: #ffffff;
         font-size: 14px;
+        font-weight: 900;
+        box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+      }
+
+      button.metric {
+        color: inherit;
+        font: inherit;
+        text-align: left;
+      }
+
+      button.metric:not(.unlinked) {
+        cursor: default;
+      }
+
+      button.metric.unlinked strong {
+        color: var(--line-dark);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .share-prompt {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0 0;
+        padding: 16px;
+        border: 2px solid var(--line-border);
+        border-radius: var(--radius);
+        background: var(--line-tint);
+      }
+
+      .share-prompt strong {
+        font-size: 15px;
+      }
+
+      .share-prompt span {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      .share-prompt-actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .sentence {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--soft);
+      }
+
+      .sentence-line {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .particle {
+        color: var(--muted);
+        font-size: 14px;
         font-weight: 850;
-        box-shadow: 0 16px 36px rgba(22, 33, 38, 0.28);
+        white-space: nowrap;
+      }
+
+      .sentence-line input,
+      .sentence-line select {
+        flex: 1 1 120px;
+        width: auto;
+        min-width: 0;
+        min-height: 48px;
+        background: #ffffff;
+      }
+
+      .sentence-line select {
+        flex: 0 1 auto;
+        max-width: 100%;
+      }
+
+      .sentence-line .grow {
+        flex: 2 1 150px;
+      }
+
+      .chip-field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .chip-input-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .chip-input-row .button {
+        width: auto;
+        padding: 0 16px;
+      }
+
+      .chip-list:empty {
+        display: none;
+      }
+
+      .chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 36px;
+        padding: 0 5px 0 12px;
+        border: 2px solid var(--line-border);
+        border-radius: 999px;
+        background: var(--line-tint);
+        color: var(--line-dark);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .chip-remove {
+        display: inline-grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: #ffffff;
+        color: var(--line-dark);
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .button,
+        .icon-button,
+        .mini-action {
+          transition:
+            transform 0.08s ease,
+            box-shadow 0.08s ease;
+        }
+
+        .sheet:not([hidden]) .sheet-panel {
+          animation: sheet-rise 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toast:not([hidden]) {
+          animation: toast-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes sheet-rise {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes toast-pop {
+          from {
+            transform: translateY(10px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
       }
 
       @media (max-width: 360px) {
@@ -1019,7 +1334,6 @@
           </svg>
         </button>
         <div class="brand">
-          <small>LINE MINI APP</small>
           <h1><button id="brand-home" class="brand-button" type="button" aria-label="ホームに戻る">ワリトモ</button></h1>
         </div>
         <div class="top-actions">
@@ -1049,6 +1363,7 @@
           </div>
           <nav class="app-menu-links" aria-label="アプリメニュー">
             <a class="app-menu-link" href="/service-overview">サービス概要</a>
+            <a class="app-menu-link" href="/faq">よくある質問</a>
             <a class="app-menu-link" href="/privacy">プライバシーポリシー</a>
             <a class="app-menu-link" href="/terms">利用規約</a>
             <a class="app-menu-link" href="/support">サポート・お問い合わせ</a>
@@ -1140,16 +1455,25 @@
           <div class="member-strip" id="member-strip" aria-label="メンバー"></div>
 
           <div class="summary-grid">
-            <div id="my-balance-metric" class="metric">
+            <button id="my-balance-metric" class="metric" type="button" data-action="link-me">
               <span class="caption">あなたの差額</span>
               <strong id="my-balance">¥0</strong>
-            </div>
+            </button>
             <div class="metric">
               <span class="caption">清算</span>
               <strong id="settlement-count">0件</strong>
             </div>
           </div>
         </section>
+
+        <div id="share-prompt" class="share-prompt" hidden>
+          <strong>メンバーに招待を送りましょう</strong>
+          <span>招待リンクを受け取った人は、自分の名前を選ぶだけで清算を確認できます。</span>
+          <div class="share-prompt-actions">
+            <button class="button" type="button" data-action="share-invite">LINEで招待を送る</button>
+            <button class="button subtle" type="button" data-action="dismiss-share-prompt">あとで</button>
+          </div>
+        </div>
 
         <div class="actions">
           <button id="open-expense" class="button" type="button">
@@ -1169,13 +1493,15 @@
         </div>
 
         <nav class="tabs" aria-label="表示切替">
-          <button class="tab active" type="button" data-tab="expenses">支払い</button>
-          <button class="tab" type="button" data-tab="settlement">清算</button>
+          <button class="tab active" type="button" data-tab="detail">明細</button>
           <button class="tab" type="button" data-tab="members">グループ設定</button>
         </nav>
 
-        <section id="expenses-view" class="view"></section>
-        <section id="settlement-view" class="view" hidden></section>
+        <div id="detail-tab-panel" class="view">
+          <section id="settlement-view"></section>
+          <section id="expenses-view"></section>
+          <section id="balances-view"></section>
+        </div>
         <section id="members-view" class="view" hidden></section>
       </section>
     </main>
@@ -1192,23 +1518,21 @@
           </button>
         </div>
         <div class="sheet-body">
-          <div class="field-grid">
-            <label>
-              内容
-              <input id="expense-title" name="title" maxlength="28" required placeholder="例: スーパー" />
-            </label>
-            <label>
-              金額
-              <input id="expense-amount" name="amount" inputmode="numeric" placeholder="例: 6655" aria-describedby="expense-amount-help" />
-              <span id="expense-amount-help" class="field-help">数字だけで入力してください。カンマ・円マークは不要です。</span>
-            </label>
-            <label>
-              支払った人
-              <select id="expense-payer" name="payer"></select>
-            </label>
+          <div class="sentence">
+            <div class="sentence-line">
+              <select id="expense-payer" name="payer" aria-label="支払った人"></select>
+              <span class="particle">が</span>
+              <input id="expense-title" class="grow" name="title" maxlength="28" required placeholder="例: スーパー" aria-label="支払った内容" />
+              <span class="particle">に</span>
+            </div>
+            <div class="sentence-line">
+              <input id="expense-amount" name="amount" inputmode="numeric" placeholder="例: 6655" aria-label="金額" aria-describedby="expense-amount-help" />
+              <span class="particle">円 払った。</span>
+            </div>
+            <span id="expense-amount-help" class="field-help">金額は数字だけで入力してください。カンマ・円マークは不要です。</span>
           </div>
           <div>
-            <div class="caption">割り勘する人</div>
+            <div class="caption">この支払いを分けるのは</div>
             <div id="debtor-options" class="checkbox-grid"></div>
           </div>
           <div id="form-error" class="error-text" aria-live="polite"></div>
@@ -1233,13 +1557,17 @@
             グループ名
             <input id="new-group-name" name="name" maxlength="28" required placeholder="例: 沖縄旅行" />
           </label>
-          <label>
-            初期メンバー
-            <textarea id="new-group-members" name="members" required placeholder="かず、まい、ゆう"></textarea>
-          </label>
-          <p class="row-meta">メンバーはあとから追加できます。2人以上で作成してください。</p>
+          <div class="chip-field">
+            <label for="new-member-name">メンバー</label>
+            <div class="chip-input-row">
+              <input id="new-member-name" maxlength="16" placeholder="例: かず" />
+              <button id="add-new-member" class="button secondary" type="button">追加</button>
+            </div>
+            <div id="new-group-member-chips" class="chip-list"></div>
+            <p id="new-group-member-count" class="row-meta"></p>
+          </div>
           <div id="group-form-error" class="error-text" aria-live="polite"></div>
-          <button class="button" type="submit">作成する</button>
+          <button id="create-group-submit" class="button" type="submit">作成する</button>
         </div>
       </form>
     </div>
@@ -1261,7 +1589,7 @@
             <input id="edit-group-name" name="name" maxlength="28" required />
           </label>
           <div id="edit-group-form-error" class="error-text" aria-live="polite"></div>
-          <button class="button" type="submit">保存する</button>
+          <button id="edit-group-submit" class="button" type="submit">保存する</button>
         </div>
       </form>
     </div>
@@ -1280,7 +1608,9 @@
     </div>
 
     <script>
-      const colors = ["#06c755", "#2f7de1", "#e66d56", "#9b7a2e", "#6c63c7", "#169c96"];
+      // Mirrors --tone-0..5 in the stylesheet. Sent to the API so stored rows
+      // stay meaningful; the UI never reads it back (see memberTone).
+      const colors = ["#157f35", "#2171b8", "#147b74", "#2b63d4", "#1a7d58", "#167795"];
       const expenseInterstitialCountKey = "waritomo:expense-interstitial-count";
       const expenseInterstitialShownKey = "waritomo:expense-interstitial-shown";
       const expenseInterstitialThreshold = 3;
@@ -1288,7 +1618,7 @@
       const initialState = {
         activeGroupId: "",
         groupName: "グループ未作成",
-        activeTab: "expenses",
+        activeTab: "detail",
         inviteToken: "",
         canManage: false,
         completedAt: null,
@@ -1317,6 +1647,9 @@
       let invitePreview = null;
       let lineContext = null;
       let canSendToCurrentChat = false;
+      let newGroupMemberNames = [];
+      let sharePromptGroupId = "";
+      const pendingActions = new Set();
       let expenseInterstitialObserver = null;
       let expenseInterstitialFallbackTimer = 0;
 
@@ -1343,6 +1676,8 @@
         homeView: document.getElementById("home-view"),
         homeAd: document.getElementById("home-ad"),
         detailView: document.getElementById("detail-view"),
+        detailTabPanel: document.getElementById("detail-tab-panel"),
+        sharePrompt: document.getElementById("share-prompt"),
         groupName: document.getElementById("group-name"),
         groupStatus: document.getElementById("group-status"),
         totalAmount: document.getElementById("total-amount"),
@@ -1356,6 +1691,7 @@
         deleteGroupButton: document.getElementById("delete-group-button"),
         expensesView: document.getElementById("expenses-view"),
         settlementView: document.getElementById("settlement-view"),
+        balancesView: document.getElementById("balances-view"),
         membersView: document.getElementById("members-view"),
         groupPicker: document.getElementById("group-picker"),
         menuButton: document.getElementById("menu-button"),
@@ -1374,9 +1710,14 @@
         debtorOptions: document.getElementById("debtor-options"),
         formError: document.getElementById("form-error"),
         newGroupName: document.getElementById("new-group-name"),
-        newGroupMembers: document.getElementById("new-group-members"),
+        newMemberName: document.getElementById("new-member-name"),
+        addNewMemberButton: document.getElementById("add-new-member"),
+        newGroupMemberChips: document.getElementById("new-group-member-chips"),
+        newGroupMemberCount: document.getElementById("new-group-member-count"),
+        createGroupSubmit: document.getElementById("create-group-submit"),
         groupFormError: document.getElementById("group-form-error"),
         editGroupName: document.getElementById("edit-group-name"),
+        editGroupSubmit: document.getElementById("edit-group-submit"),
         editGroupFormError: document.getElementById("edit-group-form-error"),
         brandHome: document.getElementById("brand-home"),
         expenseInterstitialAd: document.getElementById("expense-interstitial-ad"),
@@ -1441,7 +1782,7 @@
         const normalized = {
           ...nextState,
           activeGroupId: nextState.activeGroupId || "g-demo",
-          activeTab: nextState.activeTab || "expenses",
+          activeTab: nextState.activeTab === "members" ? "members" : "detail",
           inviteToken: nextState.inviteToken || "",
           canManage: nextState.canManage !== false,
           completedAt: nextState.completedAt || null,
@@ -1530,7 +1871,7 @@
         return {
           activeGroupId: "",
           groupName: "グループ未作成",
-          activeTab: "expenses",
+          activeTab: "detail",
           inviteToken: "",
           canManage: false,
           completedAt: null,
@@ -1722,7 +2063,7 @@
           canManage: group.canManage !== false,
           completedAt: group.completedAt || null,
           settlementChecks: state.settlementChecks ?? {},
-          activeTab: state.activeTab || "expenses",
+          activeTab: state.activeTab === "members" ? "members" : "detail",
           groups: upsertGroupSummary(groupSummaries, group, options),
           members,
           expenses: normalizeExpenses(group.expenses ?? [], group.updatedAt),
@@ -1769,6 +2110,11 @@
 
       function memberById(id) {
         return state.members.find((member) => member.id === id);
+      }
+
+      function memberTone(memberId) {
+        const index = state.members.findIndex((member) => member.id === memberId);
+        return index < 0 ? 0 : index % colors.length;
       }
 
       function initials(name) {
@@ -1837,11 +2183,26 @@
         renderGroupPicker();
         renderMembersStrip();
         renderMyBalance();
+        renderSharePrompt();
         renderTabs();
         renderExpensesView();
         renderSettlementView();
+        renderBalancesView();
         renderMembersView();
-        renderExpenseFormOptions();
+        renderExpenseFormOptions(currentExpenseFormSelection());
+      }
+
+      function renderSharePrompt() {
+        elements.sharePrompt.hidden = !(
+          currentScreen === "detail" &&
+          Boolean(state.activeGroupId) &&
+          sharePromptGroupId === state.activeGroupId
+        );
+      }
+
+      function dismissSharePrompt() {
+        sharePromptGroupId = "";
+        renderSharePrompt();
       }
 
       function renderHomeView() {
@@ -1904,8 +2265,9 @@
               ${
                 rows ||
                 `<div class="empty-state">
+                  <span class="empty-mark" aria-hidden="true">🧳</span>
                   <strong>グループはまだありません</strong>
-                  <span>${appUnavailable ? "クラウド保存に接続できると表示されます。" : "最初のグループを作成できます。"}</span>
+                  <span>${appUnavailable ? "クラウド保存に接続できると表示されます。" : "下の「グループを作る」を押して、旅行や飲み会の単位で作成してください。"}</span>
                   <button class="button" type="button" data-action="open-group" ${creationDisabled}>グループを作る</button>
                 </div>`
               }
@@ -1964,26 +2326,45 @@
         const avatars = state.members
           .map(
             (member) =>
-              `<span class="avatar" style="background:${member.color}" title="${escapeHtml(member.name)}">${escapeHtml(initials(member.name))}</span>`,
+              `<span class="avatar tone-${memberTone(member.id)}" title="${escapeHtml(member.name)}">${escapeHtml(initials(member.name))}</span>`,
           )
           .join("");
         elements.memberStrip.innerHTML = `${avatars}<span class="member-count">${state.members.length}人</span>`;
       }
 
+      function currentUserMember() {
+        return state.members.find((member) => member.linkedToCurrentUser) ?? null;
+      }
+
       function renderMyBalance() {
-        const me = state.members[0];
-        const balance = Number(settlement.balances?.[me?.id] ?? 0);
+        const me = currentUserMember();
+        elements.myBalanceMetric.classList.toggle("unlinked", !me);
+
+        if (!me) {
+          elements.myBalanceMetric.classList.remove("positive", "negative");
+          elements.myBalance.textContent = "自分を選ぶ";
+          return;
+        }
+
+        const balance = Number(settlement.balances?.[me.id] ?? 0);
         elements.myBalanceMetric.classList.toggle("positive", balance > 0);
         elements.myBalanceMetric.classList.toggle("negative", balance < 0);
         elements.myBalance.textContent = balance === 0 ? "¥0" : `${balance > 0 ? "受取 " : "支払 "}${yen(Math.abs(balance))}`;
+      }
+
+      function focusMemberLinking() {
+        if (currentUserMember()) return;
+        state.activeTab = "members";
+        saveState();
+        render();
+        showToast("「自分にする」を押すと、あなたの差額が出ます");
       }
 
       function renderTabs() {
         document.querySelectorAll(".tab").forEach((button) => {
           button.classList.toggle("active", button.dataset.tab === state.activeTab);
         });
-        elements.expensesView.hidden = state.activeTab !== "expenses";
-        elements.settlementView.hidden = state.activeTab !== "settlement";
+        elements.detailTabPanel.hidden = state.activeTab === "members";
         elements.membersView.hidden = state.activeTab !== "members";
       }
 
@@ -2004,7 +2385,7 @@
                   `;
             const expenseRow = `
               <div class="expense-row">
-                <span class="avatar small" style="background:${payer?.color ?? colors[0]}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
+                <span class="avatar small tone-${memberTone(expense.payerMemberId)}">${escapeHtml(initials(payer?.name ?? "?"))}</span>
                 <div class="row-main">
                   <div class="row-title">${escapeHtml(expense.title)}</div>
                   <div class="expense-meta">
@@ -2031,7 +2412,11 @@
             <div class="section-body">
               ${
                 rows ||
-                `<div class="empty-state"><strong>支払いはまだありません</strong><span>最初の支払いを追加できます。</span></div>`
+                `<div class="empty-state">
+                  <span class="empty-mark" aria-hidden="true">🧾</span>
+                  <strong>支払いはまだありません</strong>
+                  <span>上の「支払いを追加」を押して、立て替えた1件を登録してください。</span>
+                </div>`
               }
             </div>
           </div>`;
@@ -2048,7 +2433,7 @@
 
       function requestExpenseListAd() {
         const slot = document.getElementById("yads90255_1065348");
-        if (!slot || elements.expensesView.hidden || currentScreen !== "detail" || state.activeTab !== "expenses") return;
+        if (!slot || elements.detailTabPanel.hidden || currentScreen !== "detail") return;
         if (slot.dataset.yadsRequested === "true") return;
         slot.dataset.yadsRequested = "true";
         window.YJ_YADS = window.YJ_YADS || { tasks: [] };
@@ -2190,20 +2575,17 @@
           })
           .join("");
 
-        const balanceRows = state.members
-          .map((member) => {
-            const balance = Number(settlement.balances?.[member.id] ?? 0);
-            const label = balance > 0 ? "受け取り" : balance < 0 ? "支払い" : "差額なし";
-            return `
-              <div class="balance-row">
-                <div class="row-main">
-                  <div class="row-title">${escapeHtml(member.name)}</div>
-                  <div class="row-meta">${label}</div>
-                </div>
-                <div class="row-amount">${yen(Math.abs(balance))}</div>
+        const emptyState =
+          state.expenses.length === 0
+            ? `<div class="empty-state">
+                <strong>まだ清算するものはありません</strong>
+                <span>支払いを1件登録すると、誰が誰にいくら払えばいいかがここに出ます。</span>
+              </div>`
+            : `<div class="empty-state">
+                <span class="empty-mark" aria-hidden="true">🎉</span>
+                <strong>清算は不要です</strong>
+                <span>全員の差額がない状態です。</span>
               </div>`;
-          })
-          .join("");
 
         elements.settlementView.innerHTML = `
           <div class="section">
@@ -2211,27 +2593,46 @@
               <h2>清算は${settlement.items?.length ?? 0}件で完了</h2>
               <span class="tag">JPY</span>
             </div>
-            <div class="section-body">
-              ${
-                itemRows ||
-                `<div class="empty-state"><strong>清算は不要です</strong><span>差額がない状態です。</span></div>`
-              }
-            </div>
+            <div class="section-body">${itemRows || emptyState}</div>
             <div class="share-bar">
               <button class="button secondary" type="button" data-action="share">LINEで共有</button>
               <button class="button subtle" type="button" data-action="copy-invite">招待リンク</button>
             </div>
-          </div>
-          <div class="section">
-            <div class="section-head">
-              <h2>メンバー別差額</h2>
-            </div>
-            <div class="section-body">${balanceRows}</div>
           </div>`;
+      }
+
+      function renderBalancesView() {
+        const balanceRows = state.members
+          .map((member) => {
+            const balance = Number(settlement.balances?.[member.id] ?? 0);
+            const label = balance > 0 ? "受け取り" : balance < 0 ? "支払い" : "差額なし";
+            const tone = balance > 0 ? " positive" : balance < 0 ? " negative" : "";
+            return `
+              <div class="balance-row">
+                <div class="row-main">
+                  <div class="row-title">${escapeHtml(member.name)}</div>
+                  <div class="row-meta">${label}</div>
+                </div>
+                <div class="row-amount${tone}">${yen(Math.abs(balance))}</div>
+              </div>`;
+          })
+          .join("");
+
+        elements.balancesView.innerHTML = balanceRows && state.expenses.length > 0
+          ? `<div class="section">
+              <div class="section-head">
+                <h2>メンバー別差額</h2>
+                <span class="tag">${state.members.length}人</span>
+              </div>
+              <div class="section-body">${balanceRows}</div>
+            </div>`
+          : "";
       }
 
       function renderMembersView() {
         const completed = isCurrentGroupCompleted();
+        const memberNameDraft = document.getElementById("member-name")?.value ?? "";
+        const memberNameFocused = document.activeElement?.id === "member-name";
         const rows = state.members
           .map(
             (member) => {
@@ -2247,7 +2648,7 @@
                   : "";
               return `
                 <div class="member-row">
-                  <span class="avatar" style="background:${member.color}">${escapeHtml(initials(member.name))}</span>
+                  <span class="avatar tone-${memberTone(member.id)}">${escapeHtml(initials(member.name))}</span>
                   <div class="row-main">
                     <div class="row-title">${escapeHtml(member.name)}</div>
                     <div class="row-meta">${escapeHtml(label)}</div>
@@ -2276,7 +2677,7 @@
             <div class="sheet-body">
               <label>
                 名前
-                <input id="member-name" maxlength="16" required placeholder="例: さき" ${completed ? "disabled" : ""} />
+                <input id="member-name" maxlength="16" required placeholder="例: さき" value="${escapeHtml(memberNameDraft)}" ${completed ? "disabled" : ""} />
               </label>
               ${completed ? `<p class="row-meta">完了済みのため、メンバーを変更するには完了を解除してください。</p>` : ""}
               <button class="button secondary" type="submit" ${completed ? "disabled" : ""}>追加する</button>
@@ -2305,6 +2706,24 @@
               }
             </div>
           </div>`;
+
+        if (memberNameFocused) {
+          const input = document.getElementById("member-name");
+          if (input && !input.disabled) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }
+      }
+
+      function currentExpenseFormSelection() {
+        if (elements.sheet.hidden) return null;
+        return {
+          payerMemberId: elements.payer.value,
+          debtorMemberIds: [...elements.debtorOptions.querySelectorAll('input[name="debtor"]:checked')].map(
+            (input) => input.value,
+          ),
+        };
       }
 
       function renderExpenseFormOptions(expense = null) {
@@ -2351,13 +2770,56 @@
         elements.amount.focus();
       }
 
+      function renderNewGroupMembers() {
+        elements.newGroupMemberChips.innerHTML = newGroupMemberNames
+          .map(
+            (name, index) => `
+              <span class="chip">${escapeHtml(name)}<button class="chip-remove" type="button" data-remove-new-member="${index}" aria-label="${escapeHtml(name)}を外す">×</button></span>`,
+          )
+          .join("");
+
+        const count = newGroupMemberNames.length;
+        elements.newGroupMemberCount.textContent =
+          count === 0
+            ? "自分を含めて2人以上を追加してください。"
+            : count < 2
+              ? "1人。あと1人以上を追加してください。"
+              : `${count}人。メンバーはあとからでも追加できます。`;
+        elements.createGroupSubmit.disabled = count < 2;
+      }
+
+      function addNewGroupMembers(value) {
+        const existing = new Set(newGroupMemberNames);
+        const added = parseMemberNames(value).filter((name) => !existing.has(name));
+        newGroupMemberNames.push(...added);
+        renderNewGroupMembers();
+        return added.length > 0;
+      }
+
+      function removeNewGroupMember(index) {
+        newGroupMemberNames.splice(index, 1);
+        renderNewGroupMembers();
+      }
+
+      function commitNewGroupMemberInput() {
+        const value = elements.newMemberName.value;
+        if (!value.trim()) return;
+        if (!addNewGroupMembers(value)) {
+          elements.groupFormError.textContent = "同じ名前のメンバーが既にいます";
+          return;
+        }
+        elements.groupFormError.textContent = "";
+        elements.newMemberName.value = "";
+        elements.newMemberName.focus();
+      }
+
       function openGroupSheet() {
         if (!requireDatabaseAvailable()) return;
         elements.groupFormError.textContent = "";
         elements.newGroupName.value = "";
-        elements.newGroupMembers.value = state.members.length
-          ? state.members.map((member) => member.name).slice(0, 3).join("、")
-          : "";
+        elements.newMemberName.value = "";
+        newGroupMemberNames = state.members.length ? state.members.map((member) => member.name).slice(0, 3) : [];
+        renderNewGroupMembers();
         elements.groupSheet.hidden = false;
         elements.newGroupName.focus();
       }
@@ -2532,7 +2994,7 @@
         state.settlementChecks = nextGroup.settlementChecks ?? {};
         state.members = structuredClone(nextGroup.members);
         state.expenses = normalizeExpenses(structuredClone(nextGroup.expenses), nextGroup.updatedAt);
-        state.activeTab = "expenses";
+        state.activeTab = "detail";
         if (openDetail) currentScreen = "detail";
         saveState();
         render();
@@ -2557,10 +3019,10 @@
       async function createGroup(formData) {
         if (!requireDatabaseAvailable()) return unavailableMessage();
         const groupName = String(formData.get("name") || "").trim();
-        const memberNames = parseMemberNames(formData.get("members"));
+        const memberNames = [...newGroupMemberNames];
 
         if (!groupName) return "グループ名を入力してください";
-        if (memberNames.length < 2) return "メンバーを2人以上入力してください";
+        if (memberNames.length < 2) return "メンバーを2人以上追加してください";
 
         if (useRemote()) {
           const group = await apiJson("/api/groups", {
@@ -2568,6 +3030,7 @@
             body: JSON.stringify({ name: groupName, members: memberNames, colors }),
           });
           applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+          sharePromptGroupId = state.activeGroupId;
           closeGroupSheet();
           await refreshSettlement();
           trackEvent("group_created", { member_count: memberNames.length });
@@ -2608,8 +3071,9 @@
         state.settlementChecks = {};
         state.members = structuredClone(members);
         state.expenses = [];
-        state.activeTab = "expenses";
+        state.activeTab = "detail";
         currentScreen = "detail";
+        sharePromptGroupId = id;
         saveState({ touch: true });
         closeGroupSheet();
         render();
@@ -2837,6 +3301,31 @@
         showToast("請求メッセージをコピーしました");
       }
 
+      function inviteText(link) {
+        return [
+          `${state.groupName}の割り勘をワリトモで始めました。`,
+          "リンクを開いて、自分の名前を選んでください。",
+          link,
+        ].join("\n");
+      }
+
+      async function shareInvite() {
+        const link = await inviteLink();
+        const text = inviteText(link);
+
+        if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
+          await liff.shareTargetPicker([{ type: "text", text }]);
+          trackEvent("invite_shared", { method: "share_target_picker" });
+          showToast("LINEで招待を送りました");
+        } else {
+          await copyText(text);
+          trackEvent("invite_shared", { method: "clipboard" });
+          showToast("招待メッセージをコピーしました");
+        }
+
+        dismissSharePrompt();
+      }
+
       async function copyInvite() {
         const link = await inviteLink();
         await copyText(link);
@@ -3029,6 +3518,18 @@
         textarea.remove();
       }
 
+      async function runExclusive(key, element, handler) {
+        if (pendingActions.has(key)) return undefined;
+        pendingActions.add(key);
+        if (element) element.disabled = true;
+        try {
+          return await handler();
+        } finally {
+          pendingActions.delete(key);
+          if (element?.isConnected) element.disabled = false;
+        }
+      }
+
       function showToast(message) {
         clearTimeout(toastTimer);
         elements.toast.textContent = message;
@@ -3138,6 +3639,12 @@
           return;
         }
 
+        const removeNewMemberButton = event.target.closest("[data-remove-new-member]");
+        if (removeNewMemberButton) {
+          removeNewGroupMember(Number(removeNewMemberButton.dataset.removeNewMember));
+          return;
+        }
+
         const openGroupCard = event.target.closest("[data-open-group]");
         if (openGroupCard) {
           await switchGroup(openGroupCard.dataset.openGroup, { openDetail: true }).catch((error) => showToast(error.message));
@@ -3189,7 +3696,14 @@
         const action = event.target.closest("[data-action]")?.dataset.action;
         if (action === "open-group") openGroupSheet();
         if (action === "edit-group-name") openEditGroupSheet();
-        if (action === "join-invite") await joinInvite().catch((error) => showToast(error.message));
+        if (action === "link-me") focusMemberLinking();
+        if (action === "dismiss-share-prompt") dismissSharePrompt();
+        if (action === "share-invite") {
+          await runExclusive("share-invite", null, shareInvite).catch(() => showToast("招待を送れませんでした"));
+        }
+        if (action === "join-invite") {
+          await runExclusive("join-invite", null, joinInvite).catch((error) => showToast(error.message));
+        }
         if (action === "toggle-group-complete") await toggleCurrentGroupCompleted().catch((error) => showToast(error.message));
         if (action === "delete-group") await deleteCurrentGroup().catch((error) => showToast(error.message));
         if (action === "share") await shareSettlement().catch(() => showToast("共有できませんでした"));
@@ -3234,26 +3748,41 @@
         if (event.target === elements.groupSheet) closeGroupSheet();
       });
 
+      elements.addNewMemberButton.addEventListener("click", commitNewGroupMemberInput);
+
+      elements.newMemberName.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        commitNewGroupMemberInput();
+      });
+
       elements.editGroupSheet.addEventListener("click", (event) => {
         if (event.target === elements.editGroupSheet) closeEditGroupSheet();
       });
 
       elements.form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const error = await saveExpense(new FormData(elements.form)).catch((caughtError) => caughtError.message);
-        elements.formError.textContent = error;
+        const error = await runExclusive("save-expense", elements.expenseSubmit, () =>
+          saveExpense(new FormData(elements.form)).catch((caughtError) => caughtError.message),
+        );
+        if (error !== undefined) elements.formError.textContent = error;
       });
 
       elements.groupForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const error = await createGroup(new FormData(elements.groupForm)).catch((caughtError) => caughtError.message);
-        elements.groupFormError.textContent = error;
+        const error = await runExclusive("create-group", elements.createGroupSubmit, () =>
+          createGroup(new FormData(elements.groupForm)).catch((caughtError) => caughtError.message),
+        );
+        if (error !== undefined) elements.groupFormError.textContent = error;
+        renderNewGroupMembers();
       });
 
       elements.editGroupForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const error = await saveGroupName(new FormData(elements.editGroupForm)).catch((caughtError) => caughtError.message);
-        elements.editGroupFormError.textContent = error;
+        const error = await runExclusive("save-group-name", elements.editGroupSubmit, () =>
+          saveGroupName(new FormData(elements.editGroupForm)).catch((caughtError) => caughtError.message),
+        );
+        if (error !== undefined) elements.editGroupFormError.textContent = error;
       });
 
       elements.membersView.addEventListener("submit", async (event) => {
@@ -3261,8 +3790,12 @@
         if (!form) return;
         event.preventDefault();
         const input = form.querySelector("#member-name");
-        await addMember(input.value).catch((error) => showToast(error.message));
-        input.value = "";
+        const name = input.value;
+        await runExclusive("add-member", form.querySelector('button[type="submit"]'), async () => {
+          await addMember(name).catch((error) => showToast(error.message));
+          const currentInput = document.getElementById("member-name");
+          if (currentInput) currentInput.value = "";
+        });
       });
 
       document.addEventListener("keydown", (event) => {
