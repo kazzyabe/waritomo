@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { safeDecodeURIComponent } from "./decode.js";
 
 const SESSION_COOKIE_NAME = "waritomo_session";
 const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 14;
@@ -21,12 +22,26 @@ function safeEqual(left, right) {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+// A deployment that talks to a real database holds real user data, so it must
+// sign sessions with a real secret. Relying on APP_ENV alone meant one missing
+// variable silently downgraded production to the shared development secret,
+// which anyone reading this repository can forge sessions with.
+function requiresConfiguredSecret() {
+  return (
+    process.env.APP_ENV === "production" ||
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.DATABASE_URL)
+  );
+}
+
 export function getSessionSecret() {
   const secret = process.env.SESSION_SECRET;
   if (secret) return secret;
 
-  if (process.env.APP_ENV === "production") {
-    throw new Error("SESSION_SECRET is required in production");
+  if (requiresConfiguredSecret()) {
+    throw new Error(
+      "SESSION_SECRET is required whenever APP_ENV=production, NODE_ENV=production, or DATABASE_URL is set",
+    );
   }
 
   return "local-dev-session-secret";
@@ -74,7 +89,7 @@ export function parseCookies(cookieHeader = "") {
       .map((cookie) => {
         const index = cookie.indexOf("=");
         if (index === -1) return [cookie, ""];
-        return [cookie.slice(0, index), decodeURIComponent(cookie.slice(index + 1))];
+        return [cookie.slice(0, index), safeDecodeURIComponent(cookie.slice(index + 1))];
       }),
   );
 }

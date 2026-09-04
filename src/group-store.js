@@ -24,12 +24,49 @@ function cleanName(value, label = "名前") {
   return name;
 }
 
+// expenses.amount and settlement_confirmations.amount are numeric(18, 4), so
+// 14 integer digits is all the column holds. Without this the overflow surfaces
+// as a pg error, which is a 500 for what is plainly a bad request.
+const MAX_AMOUNT = 10 ** 14 - 1;
+
 function cleanAmount(value) {
-  const amount = Number(String(value ?? "").replace(/[^\d.]/g, ""));
+  // Both columns are `check (amount > 0)`, and it is the rounded value that
+  // gets stored — so the rounded value is what has to clear the bounds. "0.4"
+  // passed the old `> 0` check and went to pg as "0", which is a constraint
+  // violation and a 500 for a plainly bad request.
+  //
+  // Stripping every non-digit was too forgiving in the other direction: it
+  // turned "-3000" into a ¥3,000 expense and "1e5" into ¥15. Commas and a yen
+  // sign are formatting and still welcome; a minus sign changes the meaning.
+  const raw = String(value ?? "").trim().replace(/[,\s¥￥]|円$/g, "");
+  if (!/^\d+(\.\d+)?$/.test(raw)) {
+    throw new StoreError(400, "invalid_input", "金額を入力してください");
+  }
+
+  const amount = Math.round(Number(raw));
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new StoreError(400, "invalid_input", "金額を入力してください");
   }
-  return String(Math.round(amount));
+  if (amount > MAX_AMOUNT) {
+    throw new StoreError(400, "invalid_input", "金額が大きすぎます");
+  }
+  return String(amount);
+}
+
+// Colors arrive from the client and are stored verbatim, so they have to be a
+// color and nothing else. Anything looser eventually reaches a style attribute
+// or an inline style block, and an unvalidated string there is an XSS sink.
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+
+export function cleanColor(value) {
+  if (value === null || value === undefined) return null;
+
+  const color = String(value).trim();
+  if (color === "") return null;
+  if (!HEX_COLOR_PATTERN.test(color)) {
+    throw new StoreError(400, "invalid_input", "メンバーの色の指定が正しくありません");
+  }
+  return color;
 }
 
 function cleanInviteToken(value) {
@@ -38,8 +75,17 @@ function cleanInviteToken(value) {
   return token;
 }
 
+// `?? []` only covers null and undefined. A string or an object gets past it
+// and dies on .map, which is a TypeError and a logged 500 for a plain bad
+// request — the shape readJson rejects at the top level but cannot see inside.
+function requireArrayInput(value, label) {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) throw new StoreError(400, "invalid_input", `${label}の形式が正しくありません`);
+  return value;
+}
+
 function cleanMemberNames(values) {
-  const names = [...new Set((values ?? []).map((value) => cleanName(value, "メンバー名")))];
+  const names = [...new Set(requireArrayInput(values, "メンバー").map((value) => cleanName(value, "メンバー名")))];
   if (names.length < 2) {
     throw new StoreError(400, "invalid_input", "メンバーを2人以上入力してください");
   }
@@ -350,7 +396,7 @@ export async function joinGroupByInvite(groupId, user, input) {
           (select coalesce(max(sort_order), -1) + 1 from group_members where group_id = $2)
         )
       `,
-      [createId("mem"), groupId, user.id, cleanMemberName, input.color ?? null],
+      [createId("mem"), groupId, user.id, cleanMemberName, cleanColor(input.color)],
     );
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, user.id);
@@ -410,6 +456,7 @@ export async function unlinkMember(groupId, memberId, userId) {
 export async function createGroup(user, input) {
   const groupName = cleanName(input.name, "グループ名");
   const memberNames = cleanMemberNames(input.members);
+  const colors = requireArrayInput(input.colors, "色");
 
   return withTransaction(async (client) => {
     const groupId = createId("grp");
@@ -436,7 +483,7 @@ export async function createGroup(user, input) {
           groupId,
           index === 0 ? user.id : null,
           name,
-          input.colors?.[index] ?? null,
+          cleanColor(colors[index]),
           index,
         ],
       );
@@ -512,7 +559,7 @@ export async function addMember(groupId, userId, input) {
           (select coalesce(max(sort_order), -1) + 1 from group_members where group_id = $2)
         )
       `,
-      [createId("mem"), groupId, name, input.color ?? null],
+      [createId("mem"), groupId, name, cleanColor(input.color)],
     );
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
@@ -543,9 +590,27 @@ export async function deleteMember(groupId, memberId, userId) {
     );
     await client.query("delete from expenses where payer_member_id = $1", [memberId]);
     await client.query("delete from expense_debtors where member_id = $1", [memberId]);
+
+    // An expense whose only debtor was this member now has none, and an expense
+    // nobody owes anything for cannot be settled. It went out with them. Not
+    // filtered on deleted_at: a soft-deleted one is the same unsettleable shape
+    // held in reserve, and restoring it would bring the bug back with it.
+    await client.query(
+      `
+        delete from expenses
+        where group_id = $1
+          and not exists (select 1 from expense_debtors where expense_id = expenses.id)
+      `,
+      [groupId],
+    );
+
+    // Before the member row goes, not after: settlement_confirmations points at
+    // group_members with no ON DELETE CASCADE, so a member who appears in any
+    // confirmed transfer cannot be deleted while those rows exist. The whole
+    // transaction rolled back on a foreign key violation and the member stayed.
+    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("delete from group_members where id = $1", [memberId]);
 
-    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
     await client.query("update groups set completed_at = null, updated_at = now() where id = $1", [groupId]);
     return fetchGroup(client, groupId, userId);
   });
@@ -555,7 +620,7 @@ async function validateExpenseInput(client, groupId, input) {
   const title = cleanName(input.title, "内容");
   const amount = cleanAmount(input.amount);
   const payerMemberId = String(input.payerMemberId ?? "");
-  const debtorMemberIds = [...new Set((input.debtorMemberIds ?? []).map(String))];
+  const debtorMemberIds = [...new Set(requireArrayInput(input.debtorMemberIds, "割り勘する人").map(String))];
 
   if (debtorMemberIds.length === 0) {
     throw new StoreError(400, "invalid_input", "割り勘する人を選んでください");

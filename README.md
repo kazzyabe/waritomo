@@ -59,6 +59,17 @@ npm test
 HOST=127.0.0.1 PORT=4312 npm run start
 ```
 
+`npm test` runs without a database. The tests that exercise real SQL — foreign
+key ordering, cascading deletes, transaction rollback — skip unless you point
+them at a throwaway database:
+
+```sh
+docker run -d --name waritomo-test-pg -e POSTGRES_PASSWORD=pw \
+  -e POSTGRES_DB=waritomo -p 55433:5432 postgres:16-alpine
+DATABASE_URL=postgres://postgres:pw@127.0.0.1:55433/waritomo npm run db:migrate
+WARITOMO_TEST_DATABASE_URL=postgres://postgres:pw@127.0.0.1:55433/waritomo npm test
+```
+
 Apply the PostgreSQL schema after creating a database:
 
 ```sh
@@ -67,7 +78,9 @@ DATABASE_URL=postgres://user:password@127.0.0.1:5432/waritomo npm run db:migrate
 
 For local mini app configuration, copy `.env.example` values into your shell or
 Cloud Run environment. `LINE_LIFF_ID` is optional for local browser development,
-but a reachable `DATABASE_URL` is required to load or edit group data.
+but a reachable `DATABASE_URL` is required to load or edit group data. Once
+`DATABASE_URL` is set, `SESSION_SECRET` must be set too — the server refuses to
+start on a real database with the shared development secret.
 
 Open:
 

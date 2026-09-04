@@ -1660,6 +1660,11 @@
       let editingExpenseId = "";
       let cloudStorageNotice = "";
       let appUnavailable = false;
+      let liffInitialized = false;
+      // Why the app is unusable, not just that it is. Waiting fixes a storage
+      // outage; only a fresh login fixes a sign-in failure, and telling someone
+      // to wait for the cloud when their session is the problem strands them.
+      let appUnavailableReason = "storage";
       let inviteContext = parseInviteRoute();
       let invitePreview = null;
       let lineContext = null;
@@ -1906,8 +1911,26 @@
         return useRemote() && !appUnavailable;
       }
 
+      function markAppUnavailable(reason) {
+        appUnavailable = true;
+        appUnavailableReason = reason;
+      }
+
       function unavailableMessage() {
-        return "クラウド保存に接続できません。時間をおいて再度お試しください。";
+        return appUnavailableReason === "signin"
+          ? signInAgainMessage()
+          : "クラウド保存に接続できません。時間をおいて再度お試しください。";
+      }
+
+      function signInAgainMessage() {
+        return "LINEログインをやり直してください。一度アプリを閉じて開き直すと復帰します。";
+      }
+
+      function emptyHomeHint() {
+        if (!appUnavailable) return "下の「グループを作る」を押して、旅行や飲み会の単位で作成してください。";
+        return appUnavailableReason === "signin"
+          ? "LINEログインをやり直すと表示されます。"
+          : "クラウド保存に接続できると表示されます。";
       }
 
       function requireDatabaseAvailable() {
@@ -1920,11 +1943,24 @@
         return yenFormatter.format(Math.round(Number(value) || 0));
       }
 
+      // Mirrors safeDecodeURIComponent on the server. This one matters more:
+      // parseInviteRoute runs while the script is still evaluating, so a
+      // URIError from a mangled share link stops every later statement — no
+      // render, no handlers, blank screen. An id left encoded just fails the
+      // invite lookup with an ordinary error message.
+      function safeDecodeURIComponent(value) {
+        try {
+          return decodeURIComponent(value);
+        } catch {
+          return value;
+        }
+      }
+
       function parseInviteRoute() {
         const match = location.pathname.match(/^\/groups\/([^/]+)\/invite\/?$/);
         if (!match) return null;
         return {
-          groupId: decodeURIComponent(match[1]),
+          groupId: safeDecodeURIComponent(match[1]),
           token: new URLSearchParams(location.search).get("token") || "",
         };
       }
@@ -2036,14 +2072,18 @@
       async function checkStorageStatus() {
         if (config.storage?.mode !== "database") {
           remoteReady = false;
-          appUnavailable = true;
+          markAppUnavailable("storage");
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
           render();
           return false;
         }
         const status = await apiJson("/api/storage/status").catch(() => ({ available: false }));
-        appUnavailable = !status.available;
+        if (status.available) {
+          appUnavailable = false;
+        } else {
+          markAppUnavailable("storage");
+        }
         if (appUnavailable) {
           remoteReady = false;
           cloudStorageNotice = unavailableMessage();
@@ -2221,8 +2261,14 @@
         const totalAmountAcrossGroups = groups.reduce((sum, group) => sum + Number(group.totalAmount || 0), 0);
         const totalExpenseCount = groups.reduce((sum, group) => sum + Number(group.expenseCount || 0), 0);
         const creationDisabled = appUnavailable ? "disabled" : "";
+        const noticeDetail = appUnavailableReason === "signin"
+          ? "ログインし直すまで、グループの表示や作成はできません。"
+          : "データの表示・作成・編集は一時的に利用できません。";
+        const noticeAction = appUnavailableReason === "signin" && canRestartLineLogin()
+          ? `<button class="button subtle" type="button" data-action="restart-line-login">LINEログインをやり直す</button>`
+          : "";
         const notice = cloudStorageNotice
-          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>データの表示・作成・編集は一時的に利用できません。</span></div>`
+          ? `<div class="notice"><strong>${escapeHtml(cloudStorageNotice)}</strong><span>${escapeHtml(noticeDetail)}</span>${noticeAction}</div>`
           : "";
         const invitePanel = inviteContext ? renderInvitePanel() : "";
         const rows = groups
@@ -2278,7 +2324,7 @@
                 `<div class="empty-state">
                   <span class="empty-mark" aria-hidden="true">🧳</span>
                   <strong>グループはまだありません</strong>
-                  <span>${appUnavailable ? "クラウド保存に接続できると表示されます。" : "下の「グループを作る」を押して、旅行や飲み会の単位で作成してください。"}</span>
+                  <span>${escapeHtml(emptyHomeHint())}</span>
                   <button class="button" type="button" data-action="open-group" ${creationDisabled}>グループを作る</button>
                 </div>`
               }
@@ -2329,7 +2375,7 @@
       function renderGroupPicker() {
         elements.groupPicker.hidden = state.groups.length < 2;
         elements.groupPicker.innerHTML = sortGroupSummaries(state.groups)
-          .map((group) => `<option value="${group.id}">${escapeHtml(group.groupName)}</option>`)
+          .map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.groupName)}</option>`)
           .join("");
         elements.groupPicker.value = state.activeGroupId;
       }
@@ -2392,8 +2438,8 @@
             const actionButtons = completed
               ? ""
               : `
-                    <button class="mini-action" type="button" data-edit-expense="${expense.id}">編集</button>
-                    <button class="mini-action danger" type="button" data-delete-expense="${expense.id}">削除</button>
+                    <button class="mini-action" type="button" data-edit-expense="${escapeHtml(expense.id)}">編集</button>
+                    <button class="mini-action danger" type="button" data-delete-expense="${escapeHtml(expense.id)}">削除</button>
                   `;
             const expenseRow = `
               <div class="expense-row">
@@ -2622,7 +2668,7 @@
               <div class="balance-row">
                 <div class="row-main">
                   <div class="row-title">${escapeHtml(member.name)}</div>
-                  <div class="row-meta">${label}</div>
+                  <div class="row-meta">${escapeHtml(label)}</div>
                 </div>
                 <div class="row-amount${tone}">${yen(Math.abs(balance))}</div>
               </div>`;
@@ -2649,13 +2695,13 @@
             (member) => {
               const label = member.linkedToCurrentUser ? currentUserName : member.available === false ? "参加済み" : "未参加";
               const linkAction = member.linkedToCurrentUser
-                ? `<button class="mini-action" type="button" data-unlink-member="${member.id}">解除</button>`
+                ? `<button class="mini-action" type="button" data-unlink-member="${escapeHtml(member.id)}">解除</button>`
                 : member.available !== false
-                  ? `<button class="mini-action" type="button" data-claim-member="${member.id}">自分にする</button>`
+                  ? `<button class="mini-action" type="button" data-claim-member="${escapeHtml(member.id)}">自分にする</button>`
                   : `<span class="tag">参加済み</span>`;
               const deleteAction =
                 !completed && state.members.length > 2
-                  ? `<button class="mini-action danger" type="button" data-delete-member="${member.id}">削除</button>`
+                  ? `<button class="mini-action danger" type="button" data-delete-member="${escapeHtml(member.id)}">削除</button>`
                   : "";
               return `
                 <div class="member-row">
@@ -2758,7 +2804,7 @@
 
       function renderExpenseFormOptions(expense = null) {
         elements.payer.innerHTML = state.members
-          .map((member) => `<option value="${member.id}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
+          .map((member) => `<option value="${escapeHtml(member.id)}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
           .join("");
 
         const debtorIds = new Set(expense?.debtorMemberIds ?? state.members.map((member) => member.id));
@@ -2766,7 +2812,7 @@
           .map(
             (member) => `
               <label class="check-card">
-                <input type="checkbox" name="debtor" value="${member.id}" ${debtorIds.has(member.id) ? "checked" : ""} />
+                <input type="checkbox" name="debtor" value="${escapeHtml(member.id)}" ${debtorIds.has(member.id) ? "checked" : ""} />
                 <span>${escapeHtml(member.name)}</span>
               </label>`,
           )
@@ -2900,7 +2946,10 @@
 
       function expensePayloadFromForm(formData) {
         const title = String(formData.get("title") || "").trim();
-        const amount = Number(String(formData.get("amount") || "").replace(/[^\d]/g, ""));
+        // Keep the decimal point: stripping it turned 1234.56 into ¥123,456
+        // without saying so. The server rounds, and rejects anything that is
+        // not a number at all.
+        const amount = Number(String(formData.get("amount") || "").replace(/[^\d.]/g, ""));
         const payerMemberId = String(formData.get("payer") || "");
         const debtorMemberIds = formData.getAll("debtor").map(String);
         return { title, amount, payerMemberId, debtorMemberIds };
@@ -3367,14 +3416,53 @@
         dismissSharePrompt();
       }
 
+      // Returns whether a login was actually started. Inside the LINE client the
+      // user is signed in automatically and liff.login() is a documented no-op,
+      // so logging out there would strand them with no way back — reopening the
+      // mini app is what gets a fresh token. In an external browser the LIFF
+      // session has to be dropped first, because login() also does nothing
+      // while LIFF still believes the user is signed in.
+      // Inside the LINE client the user is signed in automatically and
+      // liff.login() is a documented no-op, so there is nothing to offer there
+      // — reopening the mini app is what gets a fresh token.
+      function canRestartLineLogin() {
+        // liff.init() has to have succeeded: every other liff.* call throws
+        // until it has, and login cannot be started through an SDK that never
+        // came up. When it did not, reopening the app is the only way back,
+        // which is what signInAgainMessage() says.
+        if (!window.liff || !config.line?.liffId || !liffInitialized) return false;
+
+        try {
+          return !liff.isInClient();
+        } catch (error) {
+          console.error("could not check the LINE login state", error);
+          return false;
+        }
+      }
+
+      function restartLineLogin() {
+        if (!canRestartLineLogin()) return false;
+
+        try {
+          if (liff.isLoggedIn?.()) liff.logout();
+          liff.login({ redirectUri: location.href });
+          return true;
+        } catch (error) {
+          console.error("could not restart the LINE login", error);
+          return false;
+        }
+      }
+
       async function joinInvite() {
         if (!inviteContext) return;
-        if (!requireDatabaseAvailable()) return;
+        // Authentication is checked before availability: a failed sign-in marks
+        // the app unavailable, and stopping at that check would hide the only
+        // route back in behind a message about the database.
         if (!currentUserAuthenticated) {
-          showToast("LINEログイン後に参加できます");
-          if (window.liff && !liff.isLoggedIn?.()) liff.login({ redirectUri: location.href });
+          showToast(restartLineLogin() ? "LINEログインをやり直します" : signInAgainMessage());
           return;
         }
+        if (!requireDatabaseAvailable()) return;
 
         const selectedMember = document.querySelector('input[name="invite-member"]:checked')?.value ?? "new";
         const inputName = document.getElementById("invite-name")?.value ?? "";
@@ -3589,14 +3677,45 @@
 
       async function authenticateWithLine() {
         const idToken = liff.getIDToken();
-        if (!idToken) return;
+        if (!idToken) {
+          const missing = new Error("LINEのIDトークンを取得できませんでした");
+          missing.retryable = false;
+          throw missing;
+        }
 
         const response = await fetch("/api/auth/line", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ idToken }),
         });
-        await response.json();
+        const payload = await response.json().catch(() => null);
+        // A 401 still parses as JSON, so the status has to be checked. Treating
+        // every response as success left the app believing it was signed in and
+        // blamed the resulting 401s on the database being unreachable.
+        if (!response.ok || !payload?.authenticated) {
+          const error = new Error(payload?.message || "LINEログインに失敗しました");
+          error.status = response.status;
+          // A rejected token fails the same way a second time; our own 5xx may not.
+          error.retryable = response.status >= 500;
+          throw error;
+        }
+        return payload;
+      }
+
+      // A 5xx or a dropped connection is our side having a bad second, not the
+      // user's token being wrong. Without a retry, one of those on a first
+      // launch — when there is no cookie to fall back on — leaves the app dead
+      // until the user thinks to restart it.
+      async function authenticateWithLineOnce() {
+        try {
+          return await authenticateWithLine();
+        } catch (error) {
+          // Anything we did not label is a fetch that never got an answer, and
+          // that is worth one more try. What we did label as hopeless is not.
+          if (error.retryable === false) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          return authenticateWithLine();
+        }
       }
 
       async function initializeMiniApp() {
@@ -3614,8 +3733,18 @@
         });
 
         if (!config.line.liffId) {
+          // Without a LIFF id there is no way to sign in here, so an
+          // unauthenticated visitor is a sign-in problem, not a storage one.
+          if (!session?.authenticated) {
+            markAppUnavailable("signin");
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
           await loadRemoteState().catch(() => {
-            appUnavailable = true;
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3624,8 +3753,20 @@
         }
 
         if (!window.liff) {
-          if (session?.authenticated) await loadRemoteState().catch(() => {
-            appUnavailable = true;
+          // The LIFF SDK is a plain external script with no fallback, so a
+          // blocked or failed CDN load lands here. Without a session that is a
+          // sign-in problem, and saying nothing would leave the home screen
+          // fully enabled for writes that can only come back 401.
+          if (!session?.authenticated) {
+            markAppUnavailable("signin");
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
+          await loadRemoteState().catch(() => {
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3633,16 +3774,71 @@
           return;
         }
 
-        await liff.init({ liffId: config.line.liffId });
+        const liffReady = await liff
+          .init({ liffId: config.line.liffId })
+          .then(
+            () => {
+              liffInitialized = true;
+              return true;
+            },
+            (error) => {
+              console.error("liff.init failed", error);
+              return false;
+            },
+          );
+
+        if (!liffReady) {
+          // A blocked SDK, a rotated LIFF id, or a hiccup reaching LINE. None of
+          // those are storage, and saying so would have the user wait for the
+          // wrong thing. An existing cookie still works, so try that first.
+          currentUserAuthenticated = Boolean(session?.authenticated);
+          if (currentUserAuthenticated) {
+            await loadRemoteState().catch(() => {
+              markAppUnavailable("storage");
+              cloudStorageNotice = unavailableMessage();
+              state = emptyRemoteState([]);
+              render();
+            });
+            return;
+          }
+
+          markAppUnavailable("signin");
+          cloudStorageNotice = signInAgainMessage();
+          state = emptyRemoteState([]);
+          render();
+          return;
+        }
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile().catch(() => null);
           if (profile?.displayName) currentUserName = profile.displayName;
-          await authenticateWithLine().catch(() => null);
-          currentUserAuthenticated = true;
+
+          const reauthenticated = await authenticateWithLineOnce().then(
+            () => true,
+            (error) => {
+              console.error("line authentication failed", error);
+              return false;
+            },
+          );
+          // A cookie from an earlier visit is still a valid session, so a failed
+          // refresh alone is not a reason to sign the user out.
+          currentUserAuthenticated = reauthenticated || Boolean(session?.authenticated);
+
+          if (!currentUserAuthenticated) {
+            // Nothing that writes can succeed without a session, so the controls
+            // that write are disabled rather than left to fail at the API. The
+            // invite flow stays reachable because it checks authentication
+            // before availability, and it is what offers the login again.
+            markAppUnavailable("signin");
+            cloudStorageNotice = signInAgainMessage();
+            state = emptyRemoteState([]);
+            render();
+            return;
+          }
+
           render();
           await loadRemoteState().catch(() => {
-            appUnavailable = true;
+            markAppUnavailable("storage");
             cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
@@ -3650,8 +3846,19 @@
           return;
         }
 
-        if (session?.authenticated) await loadRemoteState().catch(() => {
-          appUnavailable = true;
+        // LIFF is up and the user is simply not signed in. Saying nothing here
+        // left the home screen fully enabled for someone whose every write can
+        // only come back 401.
+        if (!session?.authenticated) {
+          markAppUnavailable("signin");
+          cloudStorageNotice = signInAgainMessage();
+          state = emptyRemoteState([]);
+          render();
+          return;
+        }
+
+        await loadRemoteState().catch(() => {
+          markAppUnavailable("storage");
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
           render();
@@ -3740,6 +3947,9 @@
         }
         if (action === "toggle-group-complete") await toggleCurrentGroupCompleted().catch((error) => showToast(error.message));
         if (action === "delete-group") await deleteCurrentGroup().catch((error) => showToast(error.message));
+        if (action === "restart-line-login") {
+          showToast(restartLineLogin() ? "LINEログインをやり直します" : signInAgainMessage());
+        }
         if (action === "share") {
           await runExclusive("share-settlement", null, shareSettlement).catch(() => showToast("共有できませんでした"));
         }
@@ -3834,7 +4044,7 @@
       render();
       refreshSettlement();
       initializeMiniApp().catch(() => {
-        appUnavailable = true;
+        markAppUnavailable("storage");
         cloudStorageNotice = unavailableMessage();
         state = emptyRemoteState([]);
         render();
