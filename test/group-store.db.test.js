@@ -52,6 +52,39 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     return { user, group, members: group.members };
   }
 
+  test("re-logging in keeps the same user id, and the groups behind it", async () => {
+    // The id is derived from the LINE user id, and groups.owner_user_id points
+    // at it. If a second login ever produced a different id — a different hash,
+    // encoding or length — the owner would silently lose every group they had.
+    const sub = `Uidentity_${process.pid}`;
+    const first = await users.upsertDatabaseLineUser({ sub, name: "幹事", picture: null });
+    assert.match(first.id, /^usr_[0-9a-f]{24}$/, "the stored id format is load-bearing");
+
+    const group = await store.createGroup(first, {
+      name: "同一性テスト",
+      members: ["幹事", "さき"],
+      colors: ["#157f35", "#2171b8"],
+    });
+
+    // Log in again with a changed display name and picture, as LINE would.
+    const second = await users.upsertDatabaseLineUser({
+      sub,
+      name: "幹事（改名）",
+      picture: "https://example.com/new.png",
+    });
+
+    assert.equal(second.id, first.id, "the id must survive a re-login");
+    assert.equal(second.displayName, "幹事（改名）", "the profile still updates");
+
+    const lookedUp = await users.getDatabaseUserByLineUserId(sub);
+    assert.equal(lookedUp.id, first.id);
+
+    const stillOwned = await store.getGroup(group.id, second.id);
+    assert.equal(stillOwned.id, group.id);
+    assert.equal(stillOwned.canManage, true, "the group is still theirs to manage");
+    assert.deepEqual((await store.listGroups(second.id)).map((g) => g.id), [group.id]);
+  });
+
   test("a member who appears in a confirmed transfer can still be removed", async () => {
     // settlement_confirmations references group_members with no ON DELETE
     // CASCADE, so deleting the member first raised 23503, rolled the whole

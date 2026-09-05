@@ -34,7 +34,6 @@ import {
   getSessionSecret,
 } from "./session.js";
 import { SettlementInputError, calculateSettlement } from "./settlement.js";
-import { getUserByLineUserId, upsertLineUser } from "./users.js";
 
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const publicDir = join(rootDir, "public");
@@ -101,17 +100,23 @@ function publicUser(user) {
   };
 }
 
-async function getCurrentUser(request) {
-  const session = getSessionFromRequest(request);
-  if (!session?.lineUserId) return null;
-  if (isDatabaseEnabled()) return getDatabaseUserByLineUserId(session.lineUserId);
-  return getUserByLineUserId(session.lineUserId);
-}
-
-async function requireDatabaseUser(request) {
+// The database is the only place a user exists. Missing configuration is an
+// operator problem and says so, rather than looking to the caller like a failed
+// login or an empty account.
+function requireDatabaseConfigured() {
   if (!isDatabaseEnabled()) {
     throw new StoreError(503, "database_not_configured", "DATABASE_URL is not configured");
   }
+}
+
+async function getCurrentUser(request) {
+  const session = getSessionFromRequest(request);
+  if (!session?.lineUserId) return null;
+  return getDatabaseUserByLineUserId(session.lineUserId);
+}
+
+async function requireDatabaseUser(request) {
+  requireDatabaseConfigured();
 
   const user = await getCurrentUser(request);
   if (!user) {
@@ -410,8 +415,14 @@ async function handleApi(request, response, url) {
 
   if (request.method === "POST" && url.pathname === "/api/auth/line") {
     const body = await readJson(request);
+    // Checked before the token is verified, so a misconfigured deployment does
+    // not spend a round trip to LINE only to find it has nowhere to put the
+    // answer. The cookie is issued below only once the user is safely stored:
+    // a session naming a user that does not exist is worse than no session.
+    requireDatabaseConfigured();
+
     const linePayload = await verifyLineIdToken(body.idToken);
-    const user = (await upsertDatabaseLineUser(linePayload)) ?? upsertLineUser(linePayload);
+    const user = await upsertDatabaseLineUser(linePayload);
     const sessionToken = createSessionToken({
       userId: user.id,
       lineUserId: user.lineUserId,
@@ -446,7 +457,18 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/me") {
-    const user = await getCurrentUser(request);
+    const session = getSessionFromRequest(request);
+    if (!session?.lineUserId) {
+      sendJson(response, 200, { authenticated: false, user: null });
+      return;
+    }
+
+    // Past this point the caller holds a session we signed, so "not signed in"
+    // would be a lie if the real problem is that we cannot reach the database.
+    // The client turns that answer into a login prompt, which fixes nothing.
+    requireDatabaseConfigured();
+
+    const user = await getDatabaseUserByLineUserId(session.lineUserId);
     sendJson(response, 200, {
       authenticated: Boolean(user),
       user: publicUser(user),
