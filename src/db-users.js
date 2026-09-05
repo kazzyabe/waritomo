@@ -27,8 +27,12 @@ export async function upsertDatabaseLineUser(linePayload) {
       values ($1, $2, $3, $4, now())
       on conflict (line_user_id)
       do update set
-        display_name = excluded.display_name,
-        picture_url = excluded.picture_url,
+        -- coalesce, not assign: LINE only sends name and picture when the
+        -- profile scope was granted, and a login without them must not blank
+        -- a profile we already have. joinGroupByInvite falls back to
+        -- display_name, and rejects the join with a 400 when it is null.
+        display_name = coalesce(excluded.display_name, line_users.display_name),
+        picture_url = coalesce(excluded.picture_url, line_users.picture_url),
         updated_at = now()
       returning *
     `,

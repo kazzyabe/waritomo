@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { after, before, describe, test } from "node:test";
 
 // These exercise real SQL, because the two worst bugs in this branch were both
@@ -36,11 +37,16 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     await db.getPool()?.end();
   });
 
+  // The README has you migrate one throwaway container and then run the suite
+  // against it repeatedly, and nothing truncates between runs. A pid is not
+  // unique across those runs, so subs that must not collide get a random tail.
+  const runId = randomUUID().slice(0, 8);
+
   let seq = 0;
   async function freshGroup() {
     seq += 1;
     const user = await users.upsertDatabaseLineUser({
-      sub: `Utest_${process.pid}_${seq}`,
+      sub: `Utest_${runId}_${seq}`,
       name: "幹事",
       picture: null,
     });
@@ -56,7 +62,7 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     // The id is derived from the LINE user id, and groups.owner_user_id points
     // at it. If a second login ever produced a different id — a different hash,
     // encoding or length — the owner would silently lose every group they had.
-    const sub = `Uidentity_${process.pid}`;
+    const sub = `Uidentity_${runId}`;
     const first = await users.upsertDatabaseLineUser({ sub, name: "幹事", picture: null });
     assert.match(first.id, /^usr_[0-9a-f]{24}$/, "the stored id format is load-bearing");
 
@@ -83,6 +89,30 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     assert.equal(stillOwned.id, group.id);
     assert.equal(stillOwned.canManage, true, "the group is still theirs to manage");
     assert.deepEqual((await store.listGroups(second.id)).map((g) => g.id), [group.id]);
+  });
+
+  test("a login without profile claims does not blank the stored profile", async () => {
+    // LINE sends name and picture only when the profile scope was granted;
+    // verifyLineIdToken guarantees nothing but sub. Writing those absences over
+    // a stored profile leaves display_name null, and joinGroupByInvite falls
+    // back to it — so the next invite this user accepts is a 400.
+    const sub = `Uprofile_${runId}`;
+    const full = await users.upsertDatabaseLineUser({
+      sub,
+      name: "幹事",
+      picture: "https://example.com/a.png",
+    });
+
+    const bare = await users.upsertDatabaseLineUser({ sub });
+
+    assert.equal(bare.id, full.id);
+    assert.equal(bare.displayName, "幹事", "the stored name survives a token without it");
+    assert.equal(bare.pictureUrl, "https://example.com/a.png");
+
+    // A token that does carry a new name still updates it.
+    const renamed = await users.upsertDatabaseLineUser({ sub, name: "幹事（改名）" });
+    assert.equal(renamed.displayName, "幹事（改名）");
+    assert.equal(renamed.pictureUrl, "https://example.com/a.png", "the picture is untouched");
   });
 
   test("a member who appears in a confirmed transfer can still be removed", async () => {
@@ -180,7 +210,7 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     // and dies on .map. readJson rejects a non-object body but cannot see the
     // shape of the fields inside it, so the store has to check its own.
     const user = await users.upsertDatabaseLineUser({
-      sub: `Utest_shape_${process.pid}`,
+      sub: `Utest_shape_${runId}`,
       name: "幹事",
       picture: null,
     });
@@ -244,7 +274,7 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
 
   test("a color that is not a color is refused and the group is not written", async () => {
     const user = await users.upsertDatabaseLineUser({
-      sub: `Utest_color_${process.pid}`,
+      sub: `Utest_color_${runId}`,
       name: "幹事",
       picture: null,
     });

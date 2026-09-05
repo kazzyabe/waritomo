@@ -493,6 +493,11 @@ async function handleApi(request, response, url) {
 
   const parts = splitPath(url.pathname);
   if (parts[0] === "api" && parts[1] === "invites" && parts[2]) {
+    // The preview below is the only unauthenticated route that reads the
+    // database, so without this it is also the only one where a missing
+    // DATABASE_URL reaches a stranger as a 500 and a stack trace.
+    requireDatabaseConfigured();
+
     const groupId = parts[2];
 
     if (parts.length === 3 && request.method === "GET") {
