@@ -2989,7 +2989,6 @@
           member_count: state.members.length,
           expense_count: state.expenses.length,
         });
-        return;
       }
 
       function parseMemberNames(value) {
@@ -3091,7 +3090,6 @@
         );
         applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         showToast("自分のメンバーにしました");
-        return;
       }
 
       async function unlinkCurrentMember(id) {
@@ -3101,21 +3099,34 @@
           { method: "DELETE" },
         );
         if (result.unlinked) {
+          const leftGroupId = state.activeGroupId;
           currentScreen = "home";
-          await loadRemoteState().catch(() => {
-            // Without a reason the empty home reads as "your groups are gone"
-            // rather than "we could not reach them just now".
-            markAppUnavailable("storage");
-            cloudStorageNotice = unavailableMessage();
-            state = emptyRemoteState([]);
+
+          const reloaded = await loadRemoteState().then(
+            () => true,
+            (error) => {
+              console.error("could not reload after unlinking", error);
+              return false;
+            },
+          );
+
+          if (!reloaded) {
+            // They are out of the group whatever happened next, so leaving it
+            // on the list would be the lie. Everything else they had stays —
+            // blanking it reads as "your groups are gone". And deliberately not
+            // markAppUnavailable: nothing re-checks it without a reload, so it
+            // would strand them on a notice telling them to wait.
+            state = emptyRemoteState((state.groups ?? []).filter((group) => group.id !== leftGroupId));
             render();
-          });
+            showToast("解除しました。一覧を更新できませんでした");
+            return;
+          }
+
           showToast("メンバー紐づけを解除しました");
           return;
         }
         applyRemoteGroup(result, state.groups, { touch: true, openDetail: true });
         showToast("メンバー紐づけを解除しました");
-        return;
       }
 
       async function inviteLink() {
@@ -3335,7 +3346,10 @@
         state = emptyRemoteState((state.groups ?? []).filter((group) => group.id !== deletedId));
         render();
 
-        const data = await apiJson("/api/groups").catch(() => null);
+        const data = await apiJson("/api/groups").catch((error) => {
+          console.error("could not refresh the group list after deleting", error);
+          return null;
+        });
         if (data?.groups?.length) {
           state = { ...state, groups: data.groups };
           const group = await apiJson(`/api/groups/${encodeURIComponent(data.groups[0].id)}`).catch(() => null);
@@ -3344,8 +3358,9 @@
         }
         await refreshSettlement();
         trackEvent("group_deleted");
-        showToast("グループを削除しました");
-        return;
+        // The delete landed either way; the list behind it might not have. Say
+        // so rather than presenting stale counts as current.
+        showToast(data ? "グループを削除しました" : "削除しました。一覧を更新できませんでした");
       }
 
       async function toggleSettlement(key) {
@@ -3367,7 +3382,6 @@
         render();
         trackEvent(checked ? "settlement_confirmed" : "settlement_unconfirmed");
         showToast(checked ? "精算済みにしました" : "未精算に戻しました");
-        return;
       }
 
       async function copyText(text) {
