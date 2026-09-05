@@ -3756,7 +3756,14 @@
         const input = form.querySelector("#member-name");
         const name = input.value;
         await runExclusive("add-member", form.querySelector('button[type="submit"]'), async () => {
-          await addMember(name).catch((error) => showToast(error.message));
+          try {
+            await addMember(name);
+          } catch (error) {
+            // Clearing the field here would make them retype the name they
+            // just lost, on top of the failure they did not cause.
+            showToast(error.message);
+            return;
+          }
           const currentInput = document.getElementById("member-name");
           if (currentInput) currentInput.value = "";
         });
