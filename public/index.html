@@ -2092,6 +2092,24 @@
         render();
       }
 
+      // What every successful write does with the group the API hands back:
+      // show it, close whatever sheet asked for it, recompute the settlement,
+      // then record and announce it. The order is the point — the toast must
+      // not land before the screen behind it has caught up — so it lives here
+      // rather than being retyped at each call site.
+      //
+      // `params` is a function because these events carry counts read off the
+      // new state; evaluating them at the call site would report the old one.
+      async function applyGroupMutation(group, { onApplied, closeSheet, event, params, toast, after } = {}) {
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        onApplied?.();
+        closeSheet?.();
+        await refreshSettlement();
+        trackEvent(event, params?.() ?? {});
+        showToast(toast);
+        after?.();
+      }
+
       async function loadRemoteState() {
         if (config.storage?.mode !== "database") return false;
 
@@ -2913,20 +2931,20 @@
       }
 
       async function addExpense(payload) {
-        const { title, amount, payerMemberId, debtorMemberIds } = payload;
         const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        closeExpenseSheet();
-        await refreshSettlement();
-        trackEvent("expense_created", {
-          member_count: state.members.length,
-          debtor_count: debtorMemberIds.length,
+        await applyGroupMutation(group, {
+          closeSheet: closeExpenseSheet,
+          event: "expense_created",
+          params: () => ({
+            member_count: state.members.length,
+            debtor_count: payload.debtorMemberIds.length,
+          }),
+          toast: "支払いを保存しました",
+          after: recordExpenseCreatedForInterstitial,
         });
-        showToast("支払いを保存しました");
-        recordExpenseCreatedForInterstitial();
         return "";
       }
 
@@ -2938,14 +2956,15 @@
             body: JSON.stringify(payload),
           },
         );
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        closeExpenseSheet();
-        await refreshSettlement();
-        trackEvent("expense_updated", {
-          member_count: state.members.length,
-          debtor_count: payload.debtorMemberIds.length,
+        await applyGroupMutation(group, {
+          closeSheet: closeExpenseSheet,
+          event: "expense_updated",
+          params: () => ({
+            member_count: state.members.length,
+            debtor_count: payload.debtorMemberIds.length,
+          }),
+          toast: "支払いを保存しました",
         });
-        showToast("支払いを保存しました");
         return "";
       }
 
@@ -2993,12 +3012,15 @@
           method: "POST",
           body: JSON.stringify({ name: groupName, members: memberNames, colors }),
         });
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        sharePromptGroupId = state.activeGroupId;
-        closeGroupSheet();
-        await refreshSettlement();
-        trackEvent("group_created", { member_count: memberNames.length });
-        showToast("グループを保存しました");
+        await applyGroupMutation(group, {
+          onApplied: () => {
+            sharePromptGroupId = state.activeGroupId;
+          },
+          closeSheet: closeGroupSheet,
+          event: "group_created",
+          params: () => ({ member_count: memberNames.length }),
+          toast: "グループを保存しました",
+        });
         return "";
       }
 
@@ -3018,11 +3040,11 @@
             color: colors[state.members.length % colors.length],
           }),
         });
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        await refreshSettlement();
-        trackEvent("member_added", { member_count: state.members.length });
-        showToast("メンバーを保存しました");
-        return;
+        await applyGroupMutation(group, {
+          event: "member_added",
+          params: () => ({ member_count: state.members.length }),
+          toast: "メンバーを保存しました",
+        });
       }
 
       async function deleteExpense(id) {
@@ -3031,11 +3053,11 @@
           `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(id)}`,
           { method: "DELETE" },
         );
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        await refreshSettlement();
-        trackEvent("expense_deleted", { expense_count: state.expenses.length });
-        showToast("支払いを削除しました");
-        return;
+        await applyGroupMutation(group, {
+          event: "expense_deleted",
+          params: () => ({ expense_count: state.expenses.length }),
+          toast: "支払いを削除しました",
+        });
       }
 
       async function deleteMember(id) {
@@ -3046,11 +3068,11 @@
           `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}`,
           { method: "DELETE" },
         );
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        await refreshSettlement();
-        trackEvent("member_deleted", { member_count: state.members.length });
-        showToast("メンバーを削除しました");
-        return;
+        await applyGroupMutation(group, {
+          event: "member_deleted",
+          params: () => ({ member_count: state.members.length }),
+          toast: "メンバーを削除しました",
+        });
       }
 
       async function claimCurrentMember(id) {
@@ -3259,11 +3281,11 @@
           method: "PATCH",
           body: JSON.stringify({ name: groupName }),
         });
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        closeEditGroupSheet();
-        await refreshSettlement();
-        trackEvent("group_renamed");
-        showToast("グループ名を保存しました");
+        await applyGroupMutation(group, {
+          closeSheet: closeEditGroupSheet,
+          event: "group_renamed",
+          toast: "グループ名を保存しました",
+        });
         return "";
       }
 
@@ -3276,11 +3298,10 @@
           method: "PATCH",
           body: JSON.stringify({ completed }),
         });
-        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        await refreshSettlement();
-        trackEvent(completed ? "group_completed" : "group_reopened");
-        showToast(completed ? "グループを完了にしました" : "完了を解除しました");
-        return;
+        await applyGroupMutation(group, {
+          event: completed ? "group_completed" : "group_reopened",
+          toast: completed ? "グループを完了にしました" : "完了を解除しました",
+        });
       }
 
       async function deleteCurrentGroup() {
