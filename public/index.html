@@ -2100,9 +2100,12 @@
       //
       // `params` is a function because these events carry counts read off the
       // new state; evaluating them at the call site would report the old one.
-      async function applyGroupMutation(group, { onApplied, closeSheet, event, params, toast, after } = {}) {
+      async function applyGroupMutation(group, { prepare, closeSheet, event, params, toast, after } = {}) {
+        // Before applyRemoteGroup, because that is what renders. Setting screen
+        // state after it leaves the change waiting for whatever renders next,
+        // and refreshSettlement's failure path only toasts.
+        prepare?.(group);
         applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-        onApplied?.();
         closeSheet?.();
         await refreshSettlement();
         trackEvent(event, params?.() ?? {});
@@ -3013,8 +3016,9 @@
           body: JSON.stringify({ name: groupName, members: memberNames, colors }),
         });
         await applyGroupMutation(group, {
-          onApplied: () => {
-            sharePromptGroupId = state.activeGroupId;
+          // From the response, not from state: state has not caught up yet.
+          prepare: (created) => {
+            sharePromptGroupId = created.id;
           },
           closeSheet: closeGroupSheet,
           event: "group_created",
@@ -3024,14 +3028,17 @@
         return "";
       }
 
+      // Returns whether the member was actually added, so the caller knows
+      // whether it is safe to clear what was typed. Throwing covers the API
+      // failing; these three refusals do not throw.
       async function addMember(name) {
-        if (!requireDatabaseAvailable()) return;
+        if (!requireDatabaseAvailable()) return false;
         const trimmed = name.trim();
-        if (!trimmed) return;
+        if (!trimmed) return false;
 
         if (!state.activeGroupId) {
           showToast("先にグループを作成してください");
-          return;
+          return false;
         }
         const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/members`, {
           method: "POST",
@@ -3045,6 +3052,7 @@
           params: () => ({ member_count: state.members.length }),
           toast: "メンバーを保存しました",
         });
+        return true;
       }
 
       async function deleteExpense(id) {
@@ -3095,6 +3103,10 @@
         if (result.unlinked) {
           currentScreen = "home";
           await loadRemoteState().catch(() => {
+            // Without a reason the empty home reads as "your groups are gone"
+            // rather than "we could not reach them just now".
+            markAppUnavailable("storage");
+            cloudStorageNotice = unavailableMessage();
             state = emptyRemoteState([]);
             render();
           });
@@ -3313,17 +3325,22 @@
         }
         if (!confirm(`${state.groupName}を削除しますか？\nこの操作は元に戻せません。`)) return;
 
-        await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, { method: "DELETE" });
-        const data = await apiJson("/api/groups");
+        const deletedId = state.activeGroupId;
+        await apiJson(`/api/groups/${encodeURIComponent(deletedId)}`, { method: "DELETE" });
+
+        // Off the screen first. Everything after this can fail, and none of it
+        // can bring the group back — leaving it on screen only produces a group
+        // whose every button 404s.
         currentScreen = "home";
-        state = data.groups?.length ? { ...state, groups: data.groups } : emptyRemoteState([]);
-        if (data.groups?.length) {
-          const nextGroup = data.groups[0];
-          const group = await apiJson(`/api/groups/${encodeURIComponent(nextGroup.id)}`);
-          applyRemoteGroup(group, data.groups, { openDetail: false });
-        } else {
-          currentScreen = "home";
-          render();
+        state = emptyRemoteState((state.groups ?? []).filter((group) => group.id !== deletedId));
+        render();
+
+        const data = await apiJson("/api/groups").catch(() => null);
+        if (data?.groups?.length) {
+          state = { ...state, groups: data.groups };
+          const group = await apiJson(`/api/groups/${encodeURIComponent(data.groups[0].id)}`).catch(() => null);
+          if (group) applyRemoteGroup(group, data.groups, { openDetail: false });
+          else render();
         }
         await refreshSettlement();
         trackEvent("group_deleted");
@@ -3756,14 +3773,16 @@
         const input = form.querySelector("#member-name");
         const name = input.value;
         await runExclusive("add-member", form.querySelector('button[type="submit"]'), async () => {
+          let added = false;
           try {
-            await addMember(name);
+            added = await addMember(name);
           } catch (error) {
-            // Clearing the field here would make them retype the name they
-            // just lost, on top of the failure they did not cause.
             showToast(error.message);
-            return;
           }
+          // Only on success. Clearing otherwise makes them retype the name they
+          // just lost, on top of a failure that was not theirs.
+          if (!added) return;
+
           const currentInput = document.getElementById("member-name");
           if (currentInput) currentInput.value = "";
         });
