@@ -13,6 +13,7 @@ const { handleRequest, readJson, respondToError, settlementInputFromGroup } = aw
 const { StoreError } = await import("../src/group-store.js");
 const { LineAuthError } = await import("../src/line-auth.js");
 const { calculateSettlement } = await import("../src/settlement.js");
+const { createSessionCookie, createSessionToken } = await import("../src/session.js");
 
 let server;
 let origin;
@@ -502,6 +503,55 @@ test("ordinary targets are unaffected", async () => {
   for (const [target, expected] of [["/api/health", 200], ["/", 200], ["/robots.txt", 200], ["/nope.js", 404]]) {
     const raw = await rawRequest(target);
     assert.match(raw, new RegExp(`^HTTP/1\\.1 ${expected} `), `${target} should be ${expected}`);
+  }
+});
+
+test("signing in without a database configured hands out no session", async () => {
+  // The in-memory user store used to catch this: login "succeeded", a cookie
+  // went out, and every group call behind it answered 503. A session naming a
+  // user that was never stored is worse than no session.
+  const response = await request("/api/auth/line", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ idToken: "whatever" }),
+  });
+
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, "database_not_configured");
+  assert.equal(response.headers.get("set-cookie"), null, "no cookie may be issued");
+});
+
+test("a session we signed is never answered with 'not signed in'", async () => {
+  // Without a reachable database we cannot say whether this user exists. Saying
+  // "not authenticated" sends the client to a login screen, which fixes
+  // nothing; the operator needs to see the configuration error.
+  const cookie = createSessionCookie(
+    createSessionToken({ userId: "usr_abc", lineUserId: "U123" }),
+  ).split(";")[0];
+
+  const response = await request("/api/me", { headers: { cookie } });
+
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, "database_not_configured");
+});
+
+test("no session at all is still an ordinary unauthenticated answer", async () => {
+  const response = await request("/api/me");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { authenticated: false, user: null });
+});
+
+test("a misconfigured deployment does not name its own environment variables", async () => {
+  // Both of these are reachable without a session, so the response is read by
+  // strangers. The code and the log carry the detail; the message does not.
+  for (const path of ["/api/groups", "/api/invites/g1?token=t"]) {
+    const response = await request(path);
+    const body = await response.json();
+
+    assert.equal(response.status, 503, path);
+    assert.equal(body.error, "database_not_configured");
+    assert.doesNotMatch(body.message, /DATABASE_URL/, `${path} must not name the variable`);
   }
 });
 

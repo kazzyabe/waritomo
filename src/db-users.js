@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
-import { isDatabaseEnabled, query } from "./db.js";
+import { query } from "./db.js";
 
+// Every id in line_users came out of this, and six columns across five tables
+// reference those ids. Changing the hash, the encoding or the length orphans
+// every group, member and expense already stored. It does not get "unified"
+// with anything; anything else gets deleted instead.
 function stableUserId(lineUserId) {
   return `usr_${createHash("sha256").update(lineUserId).digest("hex").slice(0, 24)}`;
 }
@@ -16,8 +20,6 @@ function toPublicUser(row) {
 }
 
 export async function upsertDatabaseLineUser(linePayload) {
-  if (!isDatabaseEnabled()) return null;
-
   const lineUserId = linePayload.sub;
   const result = await query(
     `
@@ -25,8 +27,12 @@ export async function upsertDatabaseLineUser(linePayload) {
       values ($1, $2, $3, $4, now())
       on conflict (line_user_id)
       do update set
-        display_name = excluded.display_name,
-        picture_url = excluded.picture_url,
+        -- coalesce, not assign: LINE only sends name and picture when the
+        -- profile scope was granted, and a login without them must not blank
+        -- a profile we already have. joinGroupByInvite falls back to
+        -- display_name, and rejects the join with a 400 when it is null.
+        display_name = coalesce(excluded.display_name, line_users.display_name),
+        picture_url = coalesce(excluded.picture_url, line_users.picture_url),
         updated_at = now()
       returning *
     `,
@@ -42,8 +48,6 @@ export async function upsertDatabaseLineUser(linePayload) {
 }
 
 export async function getDatabaseUserByLineUserId(lineUserId) {
-  if (!isDatabaseEnabled()) return null;
-
   const result = await query("select * from line_users where line_user_id = $1", [lineUserId]);
   return toPublicUser(result.rows[0]);
 }
