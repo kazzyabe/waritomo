@@ -101,11 +101,14 @@ function publicUser(user) {
 }
 
 // The database is the only place a user exists. Missing configuration is an
-// operator problem and says so, rather than looking to the caller like a failed
-// login or an empty account.
+// operator problem and says so through the error code and the log, rather than
+// looking to the caller like a failed login or an empty account. The message
+// itself stays generic: /api/groups and the invite preview both reach here
+// without a session, so naming the variable tells a stranger how we are wired.
 function requireDatabaseConfigured() {
   if (!isDatabaseEnabled()) {
-    throw new StoreError(503, "database_not_configured", "DATABASE_URL is not configured");
+    console.error("database not configured: DATABASE_URL is unset");
+    throw new StoreError(503, "database_not_configured", "ただいまご利用いただけません。時間をおいて再度お試しください。");
   }
 }
 

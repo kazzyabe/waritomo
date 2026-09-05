@@ -542,6 +542,19 @@ test("no session at all is still an ordinary unauthenticated answer", async () =
   assert.deepEqual(await response.json(), { authenticated: false, user: null });
 });
 
+test("a misconfigured deployment does not name its own environment variables", async () => {
+  // Both of these are reachable without a session, so the response is read by
+  // strangers. The code and the log carry the detail; the message does not.
+  for (const path of ["/api/groups", "/api/invites/g1?token=t"]) {
+    const response = await request(path);
+    const body = await response.json();
+
+    assert.equal(response.status, 503, path);
+    assert.equal(body.error, "database_not_configured");
+    assert.doesNotMatch(body.message, /DATABASE_URL/, `${path} must not name the variable`);
+  }
+});
+
 test("unknown API routes are 404", async () => {
   const response = await request("/api/nope");
 
