@@ -1639,13 +1639,12 @@
         inviteToken: "",
         canManage: false,
         completedAt: null,
-        settlementChecks: {},
         groups: [],
         members: [],
         expenses: [],
       };
 
-      let state = loadState();
+      let state = structuredClone(initialState);
       let settlement = { balances: {}, items: [], baseCurrencyCode: "JPY", confirmations: [] };
       let config = {
         line: { liffId: "", miniAppBaseUrl: "" },
@@ -1746,10 +1745,6 @@
       };
       let currentScreen = "home";
 
-      function loadState() {
-        return structuredClone(initialState);
-      }
-
       function saveState(options = {}) {
         syncActiveGroup(options);
       }
@@ -1794,40 +1789,6 @@
         }));
       }
 
-      function normalizeState(nextState) {
-        if (Array.isArray(nextState?.groups) && nextState.groups.length === 0 && !nextState.activeGroupId) {
-          return emptyRemoteState([]);
-        }
-        if (!nextState?.members?.length || !Array.isArray(nextState.expenses)) return null;
-
-        const normalized = {
-          ...nextState,
-          activeGroupId: nextState.activeGroupId || "g-demo",
-          activeTab: nextState.activeTab === "members" ? "members" : "detail",
-          inviteToken: nextState.inviteToken || "",
-          canManage: nextState.canManage !== false,
-          completedAt: nextState.completedAt || null,
-          settlementChecks: nextState.settlementChecks ?? {},
-          groups: Array.isArray(nextState.groups) ? nextState.groups : [],
-        };
-
-        if (normalized.groups.length === 0) {
-          normalized.groups = [snapshotCurrentGroup(normalized, normalized.activeGroupId)];
-        }
-
-        normalized.groups = normalized.groups.map((group) => normalizeGroupSummary(group, group));
-        const activeGroup = normalized.groups.find((group) => group.id === normalized.activeGroupId) ?? normalized.groups[0];
-        normalized.activeGroupId = activeGroup.id;
-        normalized.groupName = activeGroup.groupName;
-        normalized.inviteToken = activeGroup.inviteToken || normalized.inviteToken || "";
-        normalized.canManage = activeGroup.canManage !== false;
-        normalized.completedAt = activeGroup.completedAt || null;
-        normalized.settlementChecks = activeGroup.settlementChecks ?? normalized.settlementChecks ?? {};
-        normalized.members = normalizeMemberLinks(structuredClone(activeGroup.members ?? []));
-        normalized.expenses = normalizeExpenses(structuredClone(activeGroup.expenses ?? []), activeGroup.updatedAt);
-        return normalized;
-      }
-
       function snapshotCurrentGroup(source = state, id = source.activeGroupId, options = {}) {
         const existing = source.groups?.find((group) => group.id === id);
         const members = structuredClone(source.members ?? []);
@@ -1839,7 +1800,6 @@
             inviteToken: source.inviteToken,
             canManage: source.canManage,
             completedAt: source.completedAt || null,
-            settlementChecks: source.settlementChecks,
             members,
             expenses,
           },
@@ -1873,7 +1833,6 @@
           completedAt,
           inviteToken: group.inviteToken || fallback.inviteToken || "",
           canManage: group.canManage ?? fallback.canManage ?? true,
-          settlementChecks: group.settlementChecks ?? fallback.settlementChecks ?? {},
           ...(group.members ? { members: structuredClone(group.members) } : {}),
           ...(group.expenses ? { expenses } : {}),
         };
@@ -1896,19 +1855,14 @@
           inviteToken: "",
           canManage: false,
           completedAt: null,
-          settlementChecks: {},
           groups,
           members: [],
           expenses: [],
         };
       }
 
-      function useRemote() {
-        return config.storage?.mode === "database";
-      }
-
       function canUseDatabase() {
-        return useRemote() && !appUnavailable;
+        return !appUnavailable;
       }
 
       function markAppUnavailable(reason) {
@@ -2118,7 +2072,6 @@
           inviteToken: group.inviteToken || "",
           canManage: group.canManage !== false,
           completedAt: group.completedAt || null,
-          settlementChecks: state.settlementChecks ?? {},
           activeTab: state.activeTab === "members" ? "members" : "detail",
           groups: upsertGroupSummary(groupSummaries, group, options),
           members,
@@ -2179,21 +2132,6 @@
 
       function totalExpenses() {
         return state.expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-      }
-
-      function settlementInput() {
-        return {
-          baseCurrencyCode: "JPY",
-          roundingUnit: "1",
-          members: state.members.map((member) => ({ id: member.id })),
-          expenses: state.expenses.map((expense) => ({
-            payerMemberId: expense.payerMemberId,
-            title: expense.title,
-            splitMode: "equal",
-            amount: String(expense.amount),
-            debtors: expense.debtorMemberIds.map((memberId) => ({ memberId })),
-          })),
-        };
       }
 
       async function refreshSettlement() {
@@ -2821,7 +2759,7 @@
 
       function openExpenseSheet(expenseId = "") {
         if (!requireDatabaseAvailable()) return;
-        if (useRemote() && !state.activeGroupId) {
+        if (!state.activeGroupId) {
           showToast("先にグループを作成してください");
           openGroupSheet();
           return;
@@ -2957,7 +2895,7 @@
 
       function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds }) {
         if (!canUseDatabase()) return unavailableMessage();
-        if (useRemote() && !state.activeGroupId) return "先にグループを作成してください";
+        if (!state.activeGroupId) return "先にグループを作成してください";
         if (!title) return "内容を入力してください";
         if (!Number.isFinite(amount) || amount <= 0) return "金額を数字で入力してください（例: 6655）";
         if (!memberById(payerMemberId)) return "支払った人を選んでください";
@@ -2976,71 +2914,33 @@
 
       async function addExpense(payload) {
         const { title, amount, payerMemberId, debtorMemberIds } = payload;
-        if (useRemote()) {
-          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses`, {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          closeExpenseSheet();
-          await refreshSettlement();
-          trackEvent("expense_created", {
-            member_count: state.members.length,
-            debtor_count: debtorMemberIds.length,
-          });
-          showToast("支払いを保存しました");
-          recordExpenseCreatedForInterstitial();
-          return "";
-        }
-
-        state.expenses.unshift({
-          id: `e${Date.now().toString(36)}`,
-          title,
-          amount,
-          payerMemberId,
-          debtorMemberIds,
-          createdAt: new Date().toISOString(),
+        const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses`, {
+          method: "POST",
+          body: JSON.stringify(payload),
         });
-        state.completedAt = null;
-        state.settlementChecks = {};
-        saveState({ touch: true });
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         closeExpenseSheet();
-        refreshSettlement();
+        await refreshSettlement();
         trackEvent("expense_created", {
           member_count: state.members.length,
           debtor_count: debtorMemberIds.length,
         });
-        showToast("支払いを追加しました");
+        showToast("支払いを保存しました");
         recordExpenseCreatedForInterstitial();
         return "";
       }
 
       async function updateExpense(expenseId, payload) {
-        if (useRemote()) {
-          const group = await apiJson(
-            `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(expenseId)}`,
-            {
-              method: "PATCH",
-              body: JSON.stringify(payload),
-            },
-          );
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          closeExpenseSheet();
-          await refreshSettlement();
-          trackEvent("expense_updated", {
-            member_count: state.members.length,
-            debtor_count: payload.debtorMemberIds.length,
-          });
-          showToast("支払いを保存しました");
-          return "";
-        }
-
-        state.expenses = state.expenses.map((expense) => (expense.id === expenseId ? { ...expense, ...payload } : expense));
-        state.completedAt = null;
-        state.settlementChecks = {};
-        saveState({ touch: true });
+        const group = await apiJson(
+          `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(expenseId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          },
+        );
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         closeExpenseSheet();
-        refreshSettlement();
+        await refreshSettlement();
         trackEvent("expense_updated", {
           member_count: state.members.length,
           debtor_count: payload.debtorMemberIds.length,
@@ -3060,39 +2960,14 @@
           return;
         }
 
-        if (useRemote()) {
-          const group = await apiJson(`/api/groups/${encodeURIComponent(groupId)}`);
-          applyRemoteGroup(group, state.groups, { openDetail });
-          await refreshSettlement();
-          trackEvent("group_opened", {
-            member_count: state.members.length,
-            expense_count: state.expenses.length,
-          });
-          return;
-        }
-
-        syncActiveGroup();
-
-        const nextGroup = state.groups.find((group) => group.id === groupId);
-        if (!nextGroup) return;
-
-        state.activeGroupId = nextGroup.id;
-        state.groupName = nextGroup.groupName;
-        state.inviteToken = nextGroup.inviteToken || "";
-        state.canManage = nextGroup.canManage !== false;
-        state.completedAt = nextGroup.completedAt || null;
-        state.settlementChecks = nextGroup.settlementChecks ?? {};
-        state.members = structuredClone(nextGroup.members);
-        state.expenses = normalizeExpenses(structuredClone(nextGroup.expenses), nextGroup.updatedAt);
-        state.activeTab = "detail";
-        if (openDetail) currentScreen = "detail";
-        saveState();
-        render();
-        refreshSettlement();
+        const group = await apiJson(`/api/groups/${encodeURIComponent(groupId)}`);
+        applyRemoteGroup(group, state.groups, { openDetail });
+        await refreshSettlement();
         trackEvent("group_opened", {
           member_count: state.members.length,
           expense_count: state.expenses.length,
         });
+        return;
       }
 
       function parseMemberNames(value) {
@@ -3114,62 +2989,16 @@
         if (!groupName) return "グループ名を入力してください";
         if (memberNames.length < 2) return "メンバーを2人以上追加してください";
 
-        if (useRemote()) {
-          const group = await apiJson("/api/groups", {
-            method: "POST",
-            body: JSON.stringify({ name: groupName, members: memberNames, colors }),
-          });
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          sharePromptGroupId = state.activeGroupId;
-          closeGroupSheet();
-          await refreshSettlement();
-          trackEvent("group_created", { member_count: memberNames.length });
-          showToast("グループを保存しました");
-          return "";
-        }
-
-        syncActiveGroup();
-        const id = `g${Date.now().toString(36)}`;
-        const members = memberNames.map((name, index) => ({
-          id: `m${Date.now().toString(36)}${index}`,
-          name,
-          color: colors[index % colors.length],
-          linkedToCurrentUser: index === 0,
-          available: index !== 0,
-        }));
-
-        const newGroup = {
-          id,
-          groupName,
-          inviteToken: "",
-          canManage: true,
-          completedAt: null,
-          settlementChecks: {},
-          members,
-          expenses: [],
-          memberCount: members.length,
-          expenseCount: 0,
-          totalAmount: 0,
-          updatedAt: new Date().toISOString(),
-        };
-
-        state.groups.unshift(newGroup);
-        state.activeGroupId = id;
-        state.groupName = groupName;
-        state.inviteToken = "";
-        state.canManage = true;
-        state.settlementChecks = {};
-        state.members = structuredClone(members);
-        state.expenses = [];
-        state.activeTab = "detail";
-        currentScreen = "detail";
-        sharePromptGroupId = id;
-        saveState({ touch: true });
+        const group = await apiJson("/api/groups", {
+          method: "POST",
+          body: JSON.stringify({ name: groupName, members: memberNames, colors }),
+        });
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        sharePromptGroupId = state.activeGroupId;
         closeGroupSheet();
-        render();
-        refreshSettlement();
+        await refreshSettlement();
         trackEvent("group_created", { member_count: memberNames.length });
-        showToast("グループを作成しました");
+        showToast("グループを保存しました");
         return "";
       }
 
@@ -3178,148 +3007,81 @@
         const trimmed = name.trim();
         if (!trimmed) return;
 
-        if (useRemote()) {
-          if (!state.activeGroupId) {
-            showToast("先にグループを作成してください");
-            return;
-          }
-          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/members`, {
-            method: "POST",
-            body: JSON.stringify({
-              name: trimmed,
-              color: colors[state.members.length % colors.length],
-            }),
-          });
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          await refreshSettlement();
-          trackEvent("member_added", { member_count: state.members.length });
-          showToast("メンバーを保存しました");
+        if (!state.activeGroupId) {
+          showToast("先にグループを作成してください");
           return;
         }
-
-        const id = `m${Date.now().toString(36)}`;
-        state.members.push({
-          id,
-          name: trimmed,
-          color: colors[state.members.length % colors.length],
-          available: true,
-          linkedToCurrentUser: false,
+        const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/members`, {
+          method: "POST",
+          body: JSON.stringify({
+            name: trimmed,
+            color: colors[state.members.length % colors.length],
+          }),
         });
-        state.expenses = state.expenses.map((expense) => ({
-          ...expense,
-          debtorMemberIds: [...new Set([...expense.debtorMemberIds, id])],
-        }));
-        state.completedAt = null;
-        state.settlementChecks = {};
-        saveState({ touch: true });
-        refreshSettlement();
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        await refreshSettlement();
         trackEvent("member_added", { member_count: state.members.length });
-        showToast("メンバーを追加しました");
+        showToast("メンバーを保存しました");
+        return;
       }
 
       async function deleteExpense(id) {
         if (!requireDatabaseAvailable()) return;
-        if (useRemote()) {
-          const group = await apiJson(
-            `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(id)}`,
-            { method: "DELETE" },
-          );
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          await refreshSettlement();
-          trackEvent("expense_deleted", { expense_count: state.expenses.length });
-          showToast("支払いを削除しました");
-          return;
-        }
-
-        state.expenses = state.expenses.filter((expense) => expense.id !== id);
-        state.completedAt = null;
-        state.settlementChecks = {};
-        saveState({ touch: true });
-        refreshSettlement();
+        const group = await apiJson(
+          `/api/groups/${encodeURIComponent(state.activeGroupId)}/expenses/${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        );
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        await refreshSettlement();
         trackEvent("expense_deleted", { expense_count: state.expenses.length });
+        showToast("支払いを削除しました");
+        return;
       }
 
       async function deleteMember(id) {
         if (!requireDatabaseAvailable()) return;
         if (state.members.length <= 2) return;
 
-        if (useRemote()) {
-          const group = await apiJson(
-            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}`,
-            { method: "DELETE" },
-          );
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          await refreshSettlement();
-          trackEvent("member_deleted", { member_count: state.members.length });
-          showToast("メンバーを削除しました");
-          return;
-        }
-
-        state.members = state.members.filter((member) => member.id !== id);
-        state.expenses = state.expenses
-          .filter((expense) => expense.payerMemberId !== id)
-          .map((expense) => ({
-            ...expense,
-            debtorMemberIds: expense.debtorMemberIds.filter((memberId) => memberId !== id),
-          }))
-          .filter((expense) => expense.debtorMemberIds.length > 0);
-        state.completedAt = null;
-        state.settlementChecks = {};
-        saveState({ touch: true });
-        refreshSettlement();
+        const group = await apiJson(
+          `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}`,
+          { method: "DELETE" },
+        );
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        await refreshSettlement();
         trackEvent("member_deleted", { member_count: state.members.length });
         showToast("メンバーを削除しました");
+        return;
       }
 
       async function claimCurrentMember(id) {
         if (!requireDatabaseAvailable()) return;
-        if (useRemote()) {
-          const group = await apiJson(
-            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
-            { method: "POST" },
-          );
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          showToast("自分のメンバーにしました");
-          return;
-        }
-
-        state.members = state.members.map((member) => ({
-          ...member,
-          linkedToCurrentUser: member.id === id,
-          available: member.id === id ? false : member.linkedToCurrentUser ? true : member.available !== false,
-        }));
-        saveState({ touch: true });
-        render();
+        const group = await apiJson(
+          `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
+          { method: "POST" },
+        );
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         showToast("自分のメンバーにしました");
+        return;
       }
 
       async function unlinkCurrentMember(id) {
         if (!requireDatabaseAvailable()) return;
-        if (useRemote()) {
-          const result = await apiJson(
-            `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
-            { method: "DELETE" },
-          );
-          if (result.unlinked) {
-            currentScreen = "home";
-            await loadRemoteState().catch(() => {
-              state = emptyRemoteState([]);
-              render();
-            });
-            showToast("メンバー紐づけを解除しました");
-            return;
-          }
-          applyRemoteGroup(result, state.groups, { touch: true, openDetail: true });
+        const result = await apiJson(
+          `/api/groups/${encodeURIComponent(state.activeGroupId)}/members/${encodeURIComponent(id)}/claim`,
+          { method: "DELETE" },
+        );
+        if (result.unlinked) {
+          currentScreen = "home";
+          await loadRemoteState().catch(() => {
+            state = emptyRemoteState([]);
+            render();
+          });
           showToast("メンバー紐づけを解除しました");
           return;
         }
-
-        state.members = state.members.map((member) =>
-          member.id === id ? { ...member, linkedToCurrentUser: false, available: true } : member,
-        );
-        saveState({ touch: true });
-        render();
+        applyRemoteGroup(result, state.groups, { touch: true, openDetail: true });
         showToast("メンバー紐づけを解除しました");
+        return;
       }
 
       async function inviteLink() {
@@ -3493,23 +3255,13 @@
         if (!groupName) return "グループ名を入力してください";
         if (groupName.length > 40) return "グループ名が長すぎます";
 
-        if (useRemote()) {
-          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
-            method: "PATCH",
-            body: JSON.stringify({ name: groupName }),
-          });
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          closeEditGroupSheet();
-          await refreshSettlement();
-          trackEvent("group_renamed");
-          showToast("グループ名を保存しました");
-          return "";
-        }
-
-        state.groupName = groupName;
-        saveState({ touch: true });
+        const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: groupName }),
+        });
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
         closeEditGroupSheet();
-        render();
+        await refreshSettlement();
         trackEvent("group_renamed");
         showToast("グループ名を保存しました");
         return "";
@@ -3520,23 +3272,15 @@
         if (!state.activeGroupId || !state.canManage) return;
         const completed = !isCurrentGroupCompleted();
 
-        if (useRemote()) {
-          const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
-            method: "PATCH",
-            body: JSON.stringify({ completed }),
-          });
-          applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
-          await refreshSettlement();
-          trackEvent(completed ? "group_completed" : "group_reopened");
-          showToast(completed ? "グループを完了にしました" : "完了を解除しました");
-          return;
-        }
-
-        state.completedAt = completed ? new Date().toISOString() : null;
-        saveState({ touch: true });
-        render();
+        const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ completed }),
+        });
+        applyRemoteGroup(group, state.groups, { touch: true, openDetail: true });
+        await refreshSettlement();
         trackEvent(completed ? "group_completed" : "group_reopened");
         showToast(completed ? "グループを完了にしました" : "完了を解除しました");
+        return;
       }
 
       async function deleteCurrentGroup() {
@@ -3548,45 +3292,22 @@
         }
         if (!confirm(`${state.groupName}を削除しますか？\nこの操作は元に戻せません。`)) return;
 
-        if (useRemote()) {
-          await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, { method: "DELETE" });
-          const data = await apiJson("/api/groups");
-          currentScreen = "home";
-          state = data.groups?.length ? { ...state, groups: data.groups } : emptyRemoteState([]);
-          if (data.groups?.length) {
-            const nextGroup = data.groups[0];
-            const group = await apiJson(`/api/groups/${encodeURIComponent(nextGroup.id)}`);
-            applyRemoteGroup(group, data.groups, { openDetail: false });
-          } else {
-            currentScreen = "home";
-            render();
-          }
-          await refreshSettlement();
-          trackEvent("group_deleted");
-          showToast("グループを削除しました");
-          return;
-        }
-
-        state.groups = state.groups.filter((group) => group.id !== state.activeGroupId);
-        const nextGroup = state.groups[0];
-        if (nextGroup) {
-          state.activeGroupId = nextGroup.id;
-          state.groupName = nextGroup.groupName;
-          state.inviteToken = nextGroup.inviteToken || "";
-          state.canManage = nextGroup.canManage !== false;
-          state.completedAt = nextGroup.completedAt || null;
-          state.members = structuredClone(nextGroup.members);
-          state.expenses = normalizeExpenses(structuredClone(nextGroup.expenses), nextGroup.updatedAt);
-          state.settlementChecks = nextGroup.settlementChecks ?? {};
-        } else {
-          state = emptyRemoteState([]);
-        }
+        await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, { method: "DELETE" });
+        const data = await apiJson("/api/groups");
         currentScreen = "home";
-        saveState();
-        render();
-        refreshSettlement();
+        state = data.groups?.length ? { ...state, groups: data.groups } : emptyRemoteState([]);
+        if (data.groups?.length) {
+          const nextGroup = data.groups[0];
+          const group = await apiJson(`/api/groups/${encodeURIComponent(nextGroup.id)}`);
+          applyRemoteGroup(group, data.groups, { openDetail: false });
+        } else {
+          currentScreen = "home";
+          render();
+        }
+        await refreshSettlement();
         trackEvent("group_deleted");
         showToast("グループを削除しました");
+        return;
       }
 
       async function toggleSettlement(key) {
@@ -3595,33 +3316,20 @@
         if (!item) return;
         const checked = !confirmationKeys().has(key);
 
-        if (useRemote()) {
-          const data = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement/confirmations`, {
-            method: "POST",
-            body: JSON.stringify({
-              fromMemberId: item.fromMemberId,
-              toMemberId: item.toMemberId,
-              amount: item.amount,
-              checked,
-            }),
-          });
-          settlement = { ...settlement, confirmations: data.confirmations ?? [] };
-          render();
-          trackEvent(checked ? "settlement_confirmed" : "settlement_unconfirmed");
-          showToast(checked ? "精算済みにしました" : "未精算に戻しました");
-          return;
-        }
-
-        if (!state.settlementChecks) state.settlementChecks = {};
-        if (checked) state.settlementChecks[key] = { ...item, confirmedAt: new Date().toISOString() };
-        else delete state.settlementChecks[key];
-        saveState();
-        settlement = {
-          ...settlement,
-          confirmations: Object.values(state.settlementChecks).filter(Boolean),
-        };
+        const data = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}/settlement/confirmations`, {
+          method: "POST",
+          body: JSON.stringify({
+            fromMemberId: item.fromMemberId,
+            toMemberId: item.toMemberId,
+            amount: item.amount,
+            checked,
+          }),
+        });
+        settlement = { ...settlement, confirmations: data.confirmations ?? [] };
         render();
         trackEvent(checked ? "settlement_confirmed" : "settlement_unconfirmed");
+        showToast(checked ? "精算済みにしました" : "未精算に戻しました");
+        return;
       }
 
       async function copyText(text) {
