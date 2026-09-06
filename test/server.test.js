@@ -150,6 +150,39 @@ test("bad preview input is the caller's fault, not a 500", async () => {
   }
 });
 
+test("a preview far larger than any real group is refused before it is computed", async () => {
+  // Settlement is superlinear in the member count and this route needs no
+  // session, so the work has to be capped by something other than goodwill.
+  // A megabyte of body still buys thousands of members.
+  const members = Array.from({ length: 101 }, (_, index) => ({ id: `m${index}`, name: `member ${index}` }));
+  const tooManyMembers = await postPreview(JSON.stringify({ ...VALID_PREVIEW, members }));
+
+  assert.equal(tooManyMembers.status, 400);
+  assert.equal((await tooManyMembers.json()).error, "invalid_input");
+
+  const expenses = Array.from({ length: 1001 }, () => VALID_PREVIEW.expenses[0]);
+  const tooManyExpenses = await postPreview(JSON.stringify({ ...VALID_PREVIEW, expenses }));
+
+  assert.equal(tooManyExpenses.status, 400);
+  assert.equal((await tooManyExpenses.json()).error, "invalid_input");
+});
+
+test("a group of ordinary size is still previewed", async () => {
+  // The cap has to sit above anything a real trip produces, or it is a bug
+  // rather than a limit.
+  const members = Array.from({ length: 40 }, (_, index) => ({ id: `m${index}`, name: `member ${index}` }));
+  const expenses = Array.from({ length: 200 }, () => ({
+    payerMemberId: "m0",
+    title: "居酒屋",
+    splitMode: "equal",
+    amount: "3000",
+    debtors: [{ memberId: "m0" }, { memberId: "m1" }],
+  }));
+  const response = await postPreview(JSON.stringify({ ...VALID_PREVIEW, members, expenses }));
+
+  assert.equal(response.status, 200);
+});
+
 test("a body that is valid JSON but not an object is rejected for every route", async () => {
   // Every handler reads fields off the parsed body, so `null`, `[]` and `7`
   // would each become a TypeError and a logged 500 on whichever route was
