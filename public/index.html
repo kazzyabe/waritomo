@@ -3498,6 +3498,88 @@
         return data.permanentLink || data.endpointUrl || location.href;
       }
 
+      function settlementFlexRow(item) {
+        const from = memberById(item.fromMemberId)?.name ?? "不明";
+        const to = memberById(item.toMemberId)?.name ?? "不明";
+        return {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: `${from} → ${to}`, size: "sm", color: "#3c3c3c", flex: 3, wrap: true },
+            { type: "text", text: yen(item.amount), size: "sm", color: "#3c3c3c", flex: 2, align: "end" },
+          ],
+        };
+      }
+
+      function buildSettlementFlexBubble(link) {
+        const items = settlement.items ?? [];
+        const shown = items.slice(0, 5);
+        const overflowCount = items.length - shown.length;
+
+        const bodyContents = [
+          { type: "text", text: state.groupName || "ワリトモ", size: "sm", color: "#767676", wrap: true },
+          { type: "text", text: yen(totalExpenses()), size: "xxl", weight: "bold", color: "#3c3c3c", margin: "sm" },
+          { type: "separator", margin: "md" },
+        ];
+
+        if (shown.length === 0) {
+          bodyContents.push({
+            type: "text",
+            text: "清算は不要です",
+            size: "sm",
+            color: "#3c3c3c",
+            margin: "md",
+          });
+        } else {
+          shown.forEach((item, index) => {
+            bodyContents.push(
+              Object.assign(settlementFlexRow(item), { margin: index === 0 ? "md" : "sm" }),
+            );
+          });
+          if (overflowCount > 0) {
+            bodyContents.push({
+              type: "text",
+              text: `ほか${overflowCount}件`,
+              size: "xs",
+              color: "#767676",
+              margin: "sm",
+            });
+          }
+        }
+
+        return {
+          type: "bubble",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#06c755",
+            paddingAll: "16px",
+            contents: [
+              { type: "text", text: "ワリトモ・精算", color: "#ffffff", weight: "bold", size: "md" },
+            ],
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "16px",
+            contents: bodyContents,
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "12px",
+            contents: [
+              {
+                type: "button",
+                style: "link",
+                height: "sm",
+                action: { type: "uri", label: "開いて確認する", uri: link },
+              },
+            ],
+          },
+        };
+      }
+
       function settlementText(link) {
         const lines = [`${state.groupName}の清算`, `合計 ${yen(totalExpenses())}`];
         if (settlement.items?.length) {
@@ -3524,12 +3606,22 @@
         ].join("\n");
       }
 
+      // LINE's Flex Message altText field has a documented 400-character limit;
+      // unlike a plain text message, exceeding it makes shareTargetPicker reject.
+      function flexAltText(text) {
+        return text.length > 400 ? text.slice(0, 400) : text;
+      }
+
       async function shareSettlement() {
         const link = await inviteLink();
         const text = settlementText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
-          await liff.shareTargetPicker([{ type: "text", text }]);
+          // altText is the plain-text fallback/notification preview LINE shows;
+          // contents is the actual Flex bubble rendered in the chat.
+          await liff.shareTargetPicker([
+            { type: "flex", altText: flexAltText(text), contents: buildSettlementFlexBubble(link) },
+          ]);
           trackEvent("settlement_shared", { method: "share_target_picker" });
           showToast("LINEで共有しました");
           return;
@@ -3541,6 +3633,7 @@
       }
 
       async function requestPayment(key) {
+        // Intentionally left as a plain-text message (out of scope for the Flex conversion).
         const item = (settlement.items ?? []).find((candidate) => settlementItemKey(candidate) === key);
         if (!item) return;
 
@@ -3558,6 +3651,100 @@
         showToast("請求メッセージをコピーしました");
       }
 
+      function inviteMemberAvatarBox(member) {
+        return {
+          type: "box",
+          layout: "vertical",
+          width: "28px",
+          height: "28px",
+          flex: 0,
+          cornerRadius: "14px",
+          backgroundColor: colors[memberTone(member.id)],
+          justifyContent: "center",
+          alignItems: "center",
+          contents: [
+            {
+              type: "text",
+              text: initials(member.name),
+              color: "#ffffff",
+              size: "xs",
+              weight: "bold",
+              align: "center",
+              gravity: "center",
+            },
+          ],
+        };
+      }
+
+      function buildInviteFlexBubble(link) {
+        const shown = state.members.slice(0, 6);
+        const overflowCount = state.members.length - shown.length;
+        const avatarRow = {
+          type: "box",
+          layout: "horizontal",
+          spacing: "xs",
+          contents: shown.map(inviteMemberAvatarBox),
+        };
+        const bodyContents = [avatarRow];
+        if (overflowCount > 0) {
+          bodyContents.push({
+            type: "text",
+            text: `ほか${overflowCount}人`,
+            size: "xs",
+            color: "#767676",
+            margin: "sm",
+          });
+        }
+        bodyContents.push({
+          type: "text",
+          text: "リンクを開いて、自分の名前を選んでください。",
+          size: "sm",
+          color: "#3c3c3c",
+          wrap: true,
+          margin: "md",
+        });
+
+        return {
+          type: "bubble",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#1878b8",
+            paddingAll: "16px",
+            contents: [
+              {
+                type: "text",
+                text: state.groupName || "ワリトモ",
+                color: "#ffffff",
+                weight: "bold",
+                size: "md",
+                wrap: true,
+              },
+            ],
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            paddingAll: "16px",
+            contents: bodyContents,
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "12px",
+            contents: [
+              {
+                type: "button",
+                style: "link",
+                height: "sm",
+                action: { type: "uri", label: "参加する", uri: link },
+              },
+            ],
+          },
+        };
+      }
+
       function inviteText(link) {
         return [
           `${state.groupName}の割り勘をワリトモで始めました。`,
@@ -3571,7 +3758,11 @@
         const text = inviteText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
-          await liff.shareTargetPicker([{ type: "text", text }]);
+          // altText is the plain-text fallback/notification preview LINE shows;
+          // contents is the actual Flex bubble rendered in the chat.
+          await liff.shareTargetPicker([
+            { type: "flex", altText: flexAltText(text), contents: buildInviteFlexBubble(link) },
+          ]);
           trackEvent("invite_shared", { method: "share_target_picker" });
           showToast("LINEで招待を送りました");
         } else {
