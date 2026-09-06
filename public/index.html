@@ -720,6 +720,34 @@
         color: var(--line-dark);
       }
 
+      /* A small segmented control for switching what a section shows. Sized to
+         sit in a section head beside the title, unlike .tabs which spans the
+         page. */
+      .subtabs {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border: 2px solid var(--border);
+        border-radius: 999px;
+        background: #ffffff;
+      }
+
+      .subtab {
+        min-height: 30px;
+        padding: 0 12px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .subtab.active {
+        background: var(--line-tint);
+        color: var(--line-dark);
+      }
+
       .view {
         display: grid;
         gap: 12px;
@@ -1735,6 +1763,10 @@
       let editingExpenseId = "";
       // Set only while the confirm sheet is open; calling it settles that sheet.
       let pendingConfirmation = null;
+      // "balance" or "spend". Which half of the members section is showing; not
+      // persisted, because it is a way of looking at one screen rather than a
+      // setting about the group.
+      let balancesViewMode = "balance";
       let cloudStorageNotice = "";
       let appUnavailable = false;
       let liffInitialized = false;
@@ -2714,30 +2746,59 @@
           </div>`;
       }
 
+      function renderBalanceRow(member) {
+        const balance = Number(settlement.balances?.[member.id] ?? 0);
+        const label = balance > 0 ? "受け取り" : balance < 0 ? "支払い" : "差額なし";
+        const tone = balance > 0 ? " positive" : balance < 0 ? " negative" : "";
+        return `
+          <div class="balance-row">
+            <div class="row-main">
+              <div class="row-title">${escapeHtml(member.name)}</div>
+              <div class="row-meta">${escapeHtml(label)}</div>
+            </div>
+            <div class="row-amount${tone}">${yen(Math.abs(balance))}</div>
+          </div>`;
+      }
+
+      function renderSpendRow(member, total) {
+        // What this person put in, not what they end up owing. No tone class:
+        // spending is never positive or negative, it is just an amount.
+        const count = state.expenses.filter((expense) => expense.payerMemberId === member.id).length;
+        return `
+          <div class="balance-row">
+            <div class="row-main">
+              <div class="row-title">${escapeHtml(member.name)}</div>
+              <div class="row-meta">${count === 0 ? "立て替えなし" : `${count}件を立て替え`}</div>
+            </div>
+            <div class="row-amount">${yen(total)}</div>
+          </div>`;
+      }
+
       function renderBalancesView() {
-        const balanceRows = state.members
-          .map((member) => {
-            const balance = Number(settlement.balances?.[member.id] ?? 0);
-            const label = balance > 0 ? "受け取り" : balance < 0 ? "支払い" : "差額なし";
-            const tone = balance > 0 ? " positive" : balance < 0 ? " negative" : "";
-            return `
-              <div class="balance-row">
-                <div class="row-main">
-                  <div class="row-title">${escapeHtml(member.name)}</div>
-                  <div class="row-meta">${escapeHtml(label)}</div>
-                </div>
-                <div class="row-amount${tone}">${yen(Math.abs(balance))}</div>
-              </div>`;
-          })
+        const showingSpend = balancesViewMode === "spend";
+        const spendByMember = new Map();
+        state.expenses.forEach((expense) => {
+          spendByMember.set(expense.payerMemberId, (spendByMember.get(expense.payerMemberId) ?? 0) + expense.amount);
+        });
+
+        const rows = state.members
+          .map((member) =>
+            showingSpend ? renderSpendRow(member, spendByMember.get(member.id) ?? 0) : renderBalanceRow(member),
+          )
           .join("");
 
-        elements.balancesView.innerHTML = balanceRows && state.expenses.length > 0
+        elements.balancesView.innerHTML = rows && state.expenses.length > 0
           ? `<div class="section">
               <div class="section-head">
-                <h2>メンバー別差額</h2>
-                <span class="tag">${state.members.length}人</span>
+                <h2>${showingSpend ? "メンバー別支出" : "メンバー別差額"}</h2>
+                <div class="subtabs" role="group" aria-label="メンバー別の表示切替">
+                  <button class="subtab${showingSpend ? "" : " active"}" type="button" data-balances-view="balance"
+                    aria-pressed="${showingSpend ? "false" : "true"}">差額</button>
+                  <button class="subtab${showingSpend ? " active" : ""}" type="button" data-balances-view="spend"
+                    aria-pressed="${showingSpend ? "true" : "false"}">支出</button>
+                </div>
               </div>
-              <div class="section-body">${balanceRows}</div>
+              <div class="section-body">${rows}</div>
             </div>`
           : "";
       }
@@ -3876,6 +3937,14 @@
           render();
         });
       }
+
+      elements.balancesView.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-balances-view]");
+        if (!button || button.dataset.balancesView === balancesViewMode) return;
+        balancesViewMode = button.dataset.balancesView;
+        renderBalancesView();
+        trackEvent("balances_view", { view_name: balancesViewMode });
+      });
 
       document.querySelector(".tabs").addEventListener("click", (event) => {
         const button = event.target.closest("[data-tab]");
