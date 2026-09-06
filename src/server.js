@@ -54,9 +54,15 @@ const contentTypes = {
 // connection reset rather than as the 413 explaining what went wrong.
 const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
+// The preview route is unauthenticated, and settlement is superlinear in the
+// number of members. A megabyte of JSON still buys thousands of members and
+// tens of thousands of expenses, which is CPU we would burn on request. These
+// are far above any real group and far below what makes the event loop stall.
+const MAX_PREVIEW_MEMBERS = 100;
+const MAX_PREVIEW_EXPENSES = 1000;
+
 function sendJson(response, statusCode, body) {
-  response.writeHead(statusCode, { "content-type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(body));
+  sendJsonWithHeaders(response, statusCode, body);
 }
 
 function sendJsonWithHeaders(response, statusCode, body, headers = {}) {
@@ -156,6 +162,15 @@ export function settlementInputFromGroup(group) {
 // deliberate rejections are translated: anything else escaping that function is
 // our bug, and burying it behind a 400 would hide it from the same alerting.
 function previewSettlement(body) {
+  // Checked before calculateSettlement sees them: the point is to not do the
+  // work at all. Non-arrays fall through, because rejecting the shape is
+  // calculateSettlement's job and it words the message better than we would.
+  if (Array.isArray(body?.members) && body.members.length > MAX_PREVIEW_MEMBERS) {
+    throw new StoreError(400, "invalid_input", `A preview is limited to ${MAX_PREVIEW_MEMBERS} members.`);
+  }
+  if (Array.isArray(body?.expenses) && body.expenses.length > MAX_PREVIEW_EXPENSES) {
+    throw new StoreError(400, "invalid_input", `A preview is limited to ${MAX_PREVIEW_EXPENSES} expenses.`);
+  }
   try {
     return calculateSettlement(body);
   } catch (error) {

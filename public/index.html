@@ -1614,6 +1614,25 @@
       </form>
     </div>
 
+    <div id="confirm-sheet" class="sheet" hidden>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="confirm-sheet-title">
+        <div class="sheet-head">
+          <h2 id="confirm-sheet-title">確認</h2>
+          <button class="icon-button" type="button" data-confirm-answer="no" aria-label="閉じる">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="sheet-body">
+          <p id="confirm-sheet-message"></p>
+          <button id="confirm-sheet-accept" class="button danger" type="button" data-confirm-answer="yes">削除する</button>
+          <button class="button subtle" type="button" data-confirm-answer="no">やめておく</button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" role="status" hidden></div>
     <div id="expense-interstitial-ad" class="interstitial-ad" role="dialog" aria-modal="true" aria-label="広告" hidden>
       <div class="interstitial-shell">
@@ -1634,6 +1653,18 @@
       const expenseInterstitialCountKey = "waritomo:expense-interstitial-count";
       const expenseInterstitialShownKey = "waritomo:expense-interstitial-shown";
       const expenseInterstitialThreshold = 3;
+      // Long enough for the sheet to finish closing, so the ad does not appear
+      // on top of an animation the user is still reading.
+      const expenseInterstitialDelayMs = 650;
+      // If the ad network never fills the slot, close the empty overlay rather
+      // than leaving the user staring at it.
+      const expenseInterstitialFallbackMs = 7000;
+      // A slot that empties can be mid-rerender, so wait before believing it.
+      const expenseInterstitialEmptyGraceMs = 120;
+      const toastDurationMs = 2400;
+      // The name inputs cap at this, and the API accepts up to 40. Checking the
+      // same number the field enforces keeps the message reachable.
+      const groupNameMaxLength = 28;
 
       const initialState = {
         activeGroupId: "",
@@ -1660,6 +1691,8 @@
       let settlementRequestId = 0;
       let toastTimer;
       let editingExpenseId = "";
+      // Set only while the confirm sheet is open; calling it settles that sheet.
+      let pendingConfirmation = null;
       let cloudStorageNotice = "";
       let appUnavailable = false;
       let liffInitialized = false;
@@ -1721,6 +1754,10 @@
         sheet: document.getElementById("expense-sheet"),
         groupSheet: document.getElementById("group-sheet"),
         editGroupSheet: document.getElementById("edit-group-sheet"),
+        confirmSheet: document.getElementById("confirm-sheet"),
+        confirmSheetTitle: document.getElementById("confirm-sheet-title"),
+        confirmSheetMessage: document.getElementById("confirm-sheet-message"),
+        confirmSheetAccept: document.getElementById("confirm-sheet-accept"),
         form: document.getElementById("expense-form"),
         groupForm: document.getElementById("group-form"),
         editGroupForm: document.getElementById("edit-group-form"),
@@ -2012,16 +2049,25 @@
       }
 
       async function apiJson(path, options = {}) {
-        const response = await fetch(path, {
-          ...options,
-          headers: {
-            "content-type": "application/json",
-            ...(options.headers ?? {}),
-          },
-        });
+        let response;
+        try {
+          response = await fetch(path, {
+            ...options,
+            headers: {
+              "content-type": "application/json",
+              ...(options.headers ?? {}),
+            },
+          });
+        } catch {
+          // fetch rejects with "Failed to fetch" and friends — English strings
+          // from the browser that every caller of this puts straight in front
+          // of the user. The cause is always the same from here: it did not
+          // reach the server.
+          throw new Error("通信に失敗しました。電波の良い場所で試してください");
+        }
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(data.message || data.error || "API request failed");
+          throw new Error(data.message || data.error || "うまくいきませんでした。少し待ってからもう一度お試しください");
         }
         return data;
       }
@@ -2481,7 +2527,7 @@
         if (nextCount < expenseInterstitialThreshold) return;
 
         writeSessionValue(expenseInterstitialShownKey, "true");
-        window.setTimeout(showExpenseInterstitialAd, 650);
+        window.setTimeout(showExpenseInterstitialAd, expenseInterstitialDelayMs);
       }
 
       function showExpenseInterstitialAd() {
@@ -2519,7 +2565,7 @@
         cleanupExpenseInterstitialWatch();
         expenseInterstitialFallbackTimer = window.setTimeout(() => {
           if (!slot.childElementCount && !elements.expenseInterstitialAd.hidden) closeExpenseInterstitialAd();
-        }, 7000);
+        }, expenseInterstitialFallbackMs);
         expenseInterstitialObserver = new MutationObserver(() => {
           if (slot.childElementCount > 0) {
             slot.dataset.yadsHadContent = "true";
@@ -2528,7 +2574,7 @@
           if (slot.dataset.yadsHadContent !== "true") return;
           window.setTimeout(() => {
             if (!slot.childElementCount && !elements.expenseInterstitialAd.hidden) closeExpenseInterstitialAd();
-          }, 120);
+          }, expenseInterstitialEmptyGraceMs);
         });
         expenseInterstitialObserver.observe(slot, { childList: true });
       }
@@ -2900,10 +2946,36 @@
         elements.editGroupSheet.hidden = true;
       }
 
+      // confirm() is what this replaces. Inside the LINE WebView its dialog is
+      // the host app's, not ours, and whether it appears at all is up to the
+      // client — a destructive action must not depend on that.
+      function askForConfirmation({ title, message, acceptLabel }) {
+        elements.confirmSheetTitle.textContent = title;
+        elements.confirmSheetMessage.textContent = message;
+        elements.confirmSheetAccept.textContent = acceptLabel;
+        elements.confirmSheet.hidden = false;
+        elements.confirmSheetAccept.focus();
+        return new Promise((resolve) => {
+          // Every way out of the sheet goes through here, so the promise is
+          // always settled: a dangling one would leave the caller's button
+          // disabled by runExclusive for the rest of the session.
+          pendingConfirmation = (answer) => {
+            pendingConfirmation = null;
+            elements.confirmSheet.hidden = true;
+            resolve(answer);
+          };
+        });
+      }
+
+      function closeConfirmSheet() {
+        pendingConfirmation?.(false);
+      }
+
       function closeAllSheets() {
         closeExpenseSheet();
         closeGroupSheet();
         closeEditGroupSheet();
+        closeConfirmSheet();
       }
 
       function expensePayloadFromForm(formData) {
@@ -3301,7 +3373,7 @@
 
         const groupName = String(formData.get("name") || "").trim();
         if (!groupName) return "グループ名を入力してください";
-        if (groupName.length > 40) return "グループ名が長すぎます";
+        if (groupName.length > groupNameMaxLength) return "グループ名が長すぎます";
 
         const group = await apiJson(`/api/groups/${encodeURIComponent(state.activeGroupId)}`, {
           method: "PATCH",
@@ -3337,7 +3409,12 @@
           showToast("グループの削除は作成者だけが実行できます");
           return;
         }
-        if (!confirm(`${state.groupName}を削除しますか？\nこの操作は元に戻せません。`)) return;
+        const confirmed = await askForConfirmation({
+          title: "グループを削除しますか？",
+          message: `${state.groupName}の支払いと清算がすべて消えます。この操作は元に戻せません。`,
+          acceptLabel: "削除する",
+        });
+        if (!confirmed) return;
 
         const deletedId = state.activeGroupId;
         await apiJson(`/api/groups/${encodeURIComponent(deletedId)}`, { method: "DELETE" });
@@ -3421,7 +3498,7 @@
         elements.toast.hidden = false;
         toastTimer = setTimeout(() => {
           elements.toast.hidden = true;
-        }, 2400);
+        }, toastDurationMs);
       }
 
       function escapeHtml(value) {
@@ -3756,6 +3833,15 @@
 
       elements.editGroupSheet.addEventListener("click", (event) => {
         if (event.target === elements.editGroupSheet) closeEditGroupSheet();
+      });
+
+      elements.confirmSheet.addEventListener("click", (event) => {
+        if (event.target === elements.confirmSheet) {
+          closeConfirmSheet();
+          return;
+        }
+        const answer = event.target.closest("[data-confirm-answer]")?.dataset.confirmAnswer;
+        if (answer) pendingConfirmation?.(answer === "yes");
       });
 
       elements.form.addEventListener("submit", async (event) => {

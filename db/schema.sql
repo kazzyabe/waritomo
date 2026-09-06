@@ -39,6 +39,10 @@ create table if not exists group_members (
   unique (group_id, name)
 );
 
+-- Written by nothing today. Every amount is stored in JPY and settlement.js
+-- reads rate_to_base from its own input, not from here. It stays because the
+-- settlement code already carries the multi-currency shape and this is where
+-- the rates would live; drop it if that stops being the plan.
 create table if not exists group_currencies (
   group_id text not null references groups(id) on delete cascade,
   currency_code char(3) not null,
@@ -84,6 +88,9 @@ create table if not exists settlement_confirmations (
   created_at timestamptz not null default now()
 );
 
+-- Written by nothing today. Intended for an audit trail of who changed what;
+-- no code path inserts a row yet, so treat it as empty rather than as a
+-- history you can read back.
 create table if not exists audit_events (
   id text primary key,
   group_id text references groups(id) on delete cascade,
