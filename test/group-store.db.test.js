@@ -58,6 +58,23 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     return { user, group, members: group.members };
   }
 
+  test("an idle connection failing does not take the process down", async () => {
+    // A pooled connection sitting idle can fail on its own — Cloud SQL
+    // restarting, or scripts/gcp-db-stop.sh, which the cheap-ops runbook tells
+    // you to run. Without a listener that 'error' event is an uncaught
+    // exception. This asserts the listener is attached rather than stopping a
+    // real database mid-suite, which the other tests are using.
+    const pool = db.getPool();
+    assert.ok(pool, "the pool exists once the database is configured");
+    assert.ok(
+      pool.listenerCount("error") > 0,
+      "the pool must have an error listener, or an idle failure kills the process",
+    );
+
+    // And it has to survive the event, not just receive it.
+    assert.doesNotThrow(() => pool.emit("error", new Error("idle client went away")));
+  });
+
   test("re-logging in keeps the same user id, and the groups behind it", async () => {
     // The id is derived from the LINE user id, and groups.owner_user_id points
     // at it. If a second login ever produced a different id — a different hash,
