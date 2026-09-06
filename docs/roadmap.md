@@ -16,7 +16,6 @@
 - LINE token verification.
 - App session cookie.
 - Groups, members, expenses, settlement endpoints.
-- Audit events.
 
 ## Phase 2: MVP Frontend
 
@@ -44,6 +43,7 @@
 - Expense templates.
 - Receipt image attachment.
 - CSV export.
+- Change history for expense edits.
 - Currency rate snapshots.
 
 ## Phase 5: Optional Platform Features
