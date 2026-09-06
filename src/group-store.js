@@ -53,6 +53,26 @@ function cleanAmount(value) {
   return String(amount);
 }
 
+// Same normalization as cleanAmount, but zero is allowed: expense_debtors is
+// `check (amount >= 0)`, and "this person owes nothing for this one" is a
+// reasonable thing to say on a custom split. The expense total is still > 0,
+// so the sum check downstream keeps everyone from being zero.
+function cleanDebtorAmount(value) {
+  const raw = String(value ?? "").trim().replace(/[,\s¥￥]|円$/g, "");
+  if (!/^\d+(\.\d+)?$/.test(raw)) {
+    throw new StoreError(400, "invalid_input", "1人ずつの金額を入力してください");
+  }
+
+  const amount = Math.round(Number(raw));
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new StoreError(400, "invalid_input", "1人ずつの金額を入力してください");
+  }
+  if (amount > MAX_AMOUNT) {
+    throw new StoreError(400, "invalid_input", "金額が大きすぎます");
+  }
+  return String(amount);
+}
+
 // Colors arrive from the client and are stored verbatim, so they have to be a
 // color and nothing else. Anything looser eventually reaches a style attribute
 // or an inline style block, and an unvalidated string there is an XSS sink.
@@ -156,7 +176,7 @@ async function fetchGroup(client, groupId, userId) {
   const expensesResult = await run(
     client,
     `
-      select id, title, amount::text, payer_member_id, created_at
+      select id, title, amount::text, payer_member_id, split_mode, created_at
       from expenses
       where group_id = $1
         and deleted_at is null
@@ -173,7 +193,7 @@ async function fetchGroup(client, groupId, userId) {
           await run(
             client,
             `
-              select expense_id, member_id
+              select expense_id, member_id, amount::text
               from expense_debtors
               where expense_id = any($1)
               order by member_id
@@ -183,10 +203,15 @@ async function fetchGroup(client, groupId, userId) {
         ).rows;
 
   const debtorsByExpense = new Map();
+  const debtorAmountsByExpense = new Map();
   debtorRows.forEach((row) => {
     const current = debtorsByExpense.get(row.expense_id) ?? [];
     current.push(row.member_id);
     debtorsByExpense.set(row.expense_id, current);
+
+    const amounts = debtorAmountsByExpense.get(row.expense_id) ?? {};
+    amounts[row.member_id] = Number(row.amount);
+    debtorAmountsByExpense.set(row.expense_id, amounts);
   });
 
   return {
@@ -209,6 +234,11 @@ async function fetchGroup(client, groupId, userId) {
       amount: Number(expense.amount),
       payerMemberId: expense.payer_member_id,
       debtorMemberIds: debtorsByExpense.get(expense.id) ?? [],
+      splitMode: expense.split_mode,
+      // Only for custom splits. Every equal-split row stores 0, so handing
+      // those out would read as "everyone owes nothing" rather than "this
+      // column does not apply here".
+      debtorAmounts: expense.split_mode === "custom" ? (debtorAmountsByExpense.get(expense.id) ?? {}) : null,
       createdAt: expense.created_at,
     })),
   };
@@ -633,13 +663,44 @@ async function validateExpenseInput(client, groupId, input) {
     if (!memberIds.has(currentMemberId)) throw new StoreError(400, "invalid_input", "割り勘する人を選んでください");
   });
 
-  return { title, amount, payerMemberId, debtorMemberIds };
+  const splitMode = input.splitMode ?? "equal";
+  if (splitMode !== "equal" && splitMode !== "custom") {
+    throw new StoreError(400, "invalid_input", "分け方の指定が正しくありません");
+  }
+  if (splitMode === "equal") {
+    return { title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts: null };
+  }
+
+  const rawDebtorAmounts = input.debtorAmounts;
+  if (!rawDebtorAmounts || typeof rawDebtorAmounts !== "object" || Array.isArray(rawDebtorAmounts)) {
+    throw new StoreError(400, "invalid_input", "1人ずつの金額を入力してください");
+  }
+
+  const debtorAmounts = {};
+  debtorMemberIds.forEach((currentMemberId) => {
+    debtorAmounts[currentMemberId] = cleanDebtorAmount(rawDebtorAmounts[currentMemberId]);
+  });
+
+  // Checked here rather than left to settlement.js. That check only runs when a
+  // settlement is calculated, so a mismatch stored now would not surface until
+  // someone opened the settlement tab — where it is our stored data failing to
+  // settle, which is a 500 by design and unfixable by the person looking at it.
+  const total = debtorMemberIds.reduce((sum, currentMemberId) => sum + Number(debtorAmounts[currentMemberId]), 0);
+  if (total !== Number(amount)) {
+    throw new StoreError(400, "invalid_input", "1人ずつの金額の合計が総額と一致しません");
+  }
+
+  return { title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts };
 }
 
 export async function addExpense(groupId, userId, input) {
   return withTransaction(async (client) => {
     await ensureGroupAccess(client, groupId, userId);
-    const { title, amount, payerMemberId, debtorMemberIds } = await validateExpenseInput(client, groupId, input);
+    const { title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts } = await validateExpenseInput(
+      client,
+      groupId,
+      input,
+    );
 
     const expenseId = createId("exp");
     await client.query(
@@ -648,15 +709,16 @@ export async function addExpense(groupId, userId, input) {
           id, group_id, payer_member_id, created_by_user_id, title,
           currency_code, amount, rate_to_base, split_mode
         )
-        values ($1, $2, $3, $4, $5, 'JPY', $6, 1, 'equal')
+        values ($1, $2, $3, $4, $5, 'JPY', $6, 1, $7)
       `,
-      [expenseId, groupId, payerMemberId, userId, title, amount],
+      [expenseId, groupId, payerMemberId, userId, title, amount, splitMode],
     );
 
     for (const memberId of debtorMemberIds) {
-      await client.query("insert into expense_debtors (expense_id, member_id, amount) values ($1, $2, 0)", [
+      await client.query("insert into expense_debtors (expense_id, member_id, amount) values ($1, $2, $3)", [
         expenseId,
         memberId,
+        debtorAmounts?.[memberId] ?? "0",
       ]);
     }
 
@@ -669,7 +731,11 @@ export async function addExpense(groupId, userId, input) {
 export async function updateExpense(groupId, expenseId, userId, input) {
   return withTransaction(async (client) => {
     await ensureGroupAccess(client, groupId, userId);
-    const { title, amount, payerMemberId, debtorMemberIds } = await validateExpenseInput(client, groupId, input);
+    const { title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts } = await validateExpenseInput(
+      client,
+      groupId,
+      input,
+    );
 
     const result = await client.query(
       `
@@ -677,21 +743,25 @@ export async function updateExpense(groupId, expenseId, userId, input) {
         set title = $1,
             amount = $2,
             payer_member_id = $3,
+            split_mode = $4,
             updated_at = now()
-        where id = $4
-          and group_id = $5
+        where id = $5
+          and group_id = $6
           and deleted_at is null
         returning id
       `,
-      [title, amount, payerMemberId, expenseId, groupId],
+      [title, amount, payerMemberId, splitMode, expenseId, groupId],
     );
     if (!result.rows[0]) throw new StoreError(404, "expense_not_found", "支払いが見つかりません");
 
+    // Editing back to an equal split rewrites every debtor row at 0, so a
+    // stale per-person amount cannot outlive the mode that gave it meaning.
     await client.query("delete from expense_debtors where expense_id = $1", [expenseId]);
     for (const memberId of debtorMemberIds) {
-      await client.query("insert into expense_debtors (expense_id, member_id, amount) values ($1, $2, 0)", [
+      await client.query("insert into expense_debtors (expense_id, member_id, amount) values ($1, $2, $3)", [
         expenseId,
         memberId,
+        debtorAmounts?.[memberId] ?? "0",
       ]);
     }
     await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);

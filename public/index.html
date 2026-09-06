@@ -1055,6 +1055,37 @@
         accent-color: var(--line);
       }
 
+      /* The per-person amount on a custom split. It sits inside the same card
+         as the checkbox, so the name and the amount stay one thing. */
+      .check-card .debtor-amount {
+        width: 100%;
+        min-width: 0;
+        min-height: 34px;
+        padding: 4px 8px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: #ffffff;
+        color: var(--ink);
+        font: inherit;
+        text-align: right;
+      }
+
+      .check-card .debtor-amount:disabled {
+        background: var(--off);
+        color: var(--off-ink);
+      }
+
+      .split-remainder.short,
+      .split-remainder.over {
+        color: var(--danger);
+        font-weight: 900;
+      }
+
+      .split-remainder.exact {
+        color: var(--line-dark);
+        font-weight: 900;
+      }
+
       .check-card:has(input:checked),
       .claim-card:has(input:checked) {
         border-color: var(--line);
@@ -1553,7 +1584,18 @@
           </div>
           <div>
             <div class="caption">この支払いを分けるのは</div>
+            <div id="split-mode-options" class="checkbox-grid">
+              <label class="check-card">
+                <input type="radio" name="splitMode" value="equal" checked />
+                <span>均等に割る</span>
+              </label>
+              <label class="check-card">
+                <input type="radio" name="splitMode" value="custom" />
+                <span>1人ずつ指定</span>
+              </label>
+            </div>
             <div id="debtor-options" class="checkbox-grid"></div>
+            <div id="split-remainder" class="field-help" aria-live="polite" hidden></div>
           </div>
           <div id="form-error" class="error-text" aria-live="polite"></div>
           <button id="expense-submit" class="button" type="submit">追加する</button>
@@ -1767,6 +1809,8 @@
         amount: document.getElementById("expense-amount"),
         payer: document.getElementById("expense-payer"),
         debtorOptions: document.getElementById("debtor-options"),
+        splitModeOptions: document.getElementById("split-mode-options"),
+        splitRemainder: document.getElementById("split-remainder"),
         formError: document.getElementById("form-error"),
         newGroupName: document.getElementById("new-group-name"),
         newMemberName: document.getElementById("new-member-name"),
@@ -1825,6 +1869,10 @@
           ...expense,
           amount: Number(expense.amount || 0),
           debtorMemberIds: Array.isArray(expense.debtorMemberIds) ? expense.debtorMemberIds.map(String) : [],
+          // Anything stored before custom splits existed, and anything a stale
+          // cache hands back, is an equal split.
+          splitMode: expense.splitMode === "custom" ? "custom" : "equal",
+          debtorAmounts: expense.debtorAmounts ?? null,
           createdAt: expense.createdAt || expense.created_at || fallbackDate,
         }));
       }
@@ -2456,7 +2504,7 @@
                   <div class="row-title">${escapeHtml(expense.title)}</div>
                   <div class="expense-meta">
                     <div class="row-meta">${escapeHtml(payer?.name ?? "不明")}が支払い</div>
-                    <div class="row-meta">対象 ${escapeHtml(participantLabel)}</div>
+                    <div class="row-meta">対象 ${escapeHtml(participantLabel)}${expense.splitMode === "custom" ? "（1人ずつ指定）" : ""}</div>
                     <div class="row-meta">入力 ${escapeHtml(formatExpenseDate(expense.createdAt))}</div>
                   </div>
                 </div>
@@ -2800,6 +2848,20 @@
         }
       }
 
+      function currentSplitMode() {
+        return elements.form.querySelector('input[name="splitMode"]:checked')?.value === "custom" ? "custom" : "equal";
+      }
+
+      // The raw strings, not numbers: this feeds the redraw below, and rounding
+      // what someone is halfway through typing would move the caret under them.
+      function currentDebtorAmountInputs() {
+        const amounts = {};
+        elements.debtorOptions.querySelectorAll("input.debtor-amount").forEach((input) => {
+          amounts[input.dataset.memberId] = input.value;
+        });
+        return amounts;
+      }
+
       function currentExpenseFormSelection() {
         if (elements.sheet.hidden) return null;
         return {
@@ -2807,7 +2869,29 @@
           debtorMemberIds: [...elements.debtorOptions.querySelectorAll('input[name="debtor"]:checked')].map(
             (input) => input.value,
           ),
+          splitMode: currentSplitMode(),
+          debtorAmounts: currentDebtorAmountInputs(),
         };
+      }
+
+      function amountFromInput(value) {
+        // Same shape the API accepts, so what the sheet adds up and what the
+        // server adds up cannot disagree.
+        const raw = String(value ?? "").trim().replace(/[,\s¥￥]|円$/g, "");
+        if (!/^\d+(\.\d+)?$/.test(raw)) return null;
+        const amount = Math.round(Number(raw));
+        return Number.isFinite(amount) ? amount : null;
+      }
+
+      // Splits `total` across `count` people, handing the remainder out a yen at
+      // a time so the parts add back up to the total exactly. Used to seed the
+      // custom fields when someone switches modes, so they start from a state
+      // that already balances instead of an empty form that does not.
+      function evenShares(total, count) {
+        if (count <= 0) return [];
+        const base = Math.floor(total / count);
+        const remainder = total - base * count;
+        return Array.from({ length: count }, (_, index) => base + (index < remainder ? 1 : 0));
       }
 
       function renderExpenseFormOptions(expense = null) {
@@ -2815,16 +2899,83 @@
           .map((member) => `<option value="${escapeHtml(member.id)}" ${expense?.payerMemberId === member.id ? "selected" : ""}>${escapeHtml(member.name)}</option>`)
           .join("");
 
+        const splitMode = expense?.splitMode === "custom" ? "custom" : "equal";
+        elements.form.querySelectorAll('input[name="splitMode"]').forEach((input) => {
+          input.checked = input.value === splitMode;
+        });
+
         const debtorIds = new Set(expense?.debtorMemberIds ?? state.members.map((member) => member.id));
+        const seeded = seededDebtorAmounts(expense, debtorIds, splitMode);
+
         elements.debtorOptions.innerHTML = state.members
-          .map(
-            (member) => `
+          .map((member) => {
+            const checked = debtorIds.has(member.id);
+            const amountField =
+              splitMode === "custom"
+                ? `<input type="text" class="debtor-amount" inputmode="numeric" name="debtorAmount"
+                     data-member-id="${escapeHtml(member.id)}" value="${escapeHtml(String(seeded[member.id] ?? ""))}"
+                     aria-label="${escapeHtml(member.name)}の金額" ${checked ? "" : "disabled"} />`
+                : "";
+            return `
               <label class="check-card">
-                <input type="checkbox" name="debtor" value="${escapeHtml(member.id)}" ${debtorIds.has(member.id) ? "checked" : ""} />
+                <input type="checkbox" name="debtor" value="${escapeHtml(member.id)}" ${checked ? "checked" : ""} />
                 <span>${escapeHtml(member.name)}</span>
-              </label>`,
-          )
+                ${amountField}
+              </label>`;
+          })
           .join("");
+
+        updateSplitRemainder();
+      }
+
+      function seededDebtorAmounts(expense, debtorIds, splitMode) {
+        if (splitMode !== "custom") return {};
+
+        const seeded = {};
+        // Whatever is already on the expense or still in the fields wins.
+        Object.entries(expense?.debtorAmounts ?? {}).forEach(([memberId, amount]) => {
+          seeded[memberId] = amount;
+        });
+
+        const unseeded = [...debtorIds].filter((memberId) => seeded[memberId] === undefined);
+        if (unseeded.length === 0) return seeded;
+
+        // Nothing to go on — the first switch into this mode. Start everyone at
+        // an even share so the total already matches and the person only has to
+        // move the numbers that are wrong.
+        const total = amountFromInput(elements.amount.value) ?? 0;
+        const shares = evenShares(total, debtorIds.size);
+        [...debtorIds].forEach((memberId, index) => {
+          if (seeded[memberId] === undefined) seeded[memberId] = shares[index] ?? 0;
+        });
+        return seeded;
+      }
+
+      function updateSplitRemainder() {
+        if (currentSplitMode() !== "custom") {
+          elements.splitRemainder.hidden = true;
+          return;
+        }
+
+        const total = amountFromInput(elements.amount.value) ?? 0;
+        let assigned = 0;
+        elements.debtorOptions.querySelectorAll("input.debtor-amount:not(:disabled)").forEach((input) => {
+          assigned += amountFromInput(input.value) ?? 0;
+        });
+
+        const difference = total - assigned;
+        elements.splitRemainder.hidden = false;
+        elements.splitRemainder.className = "field-help split-remainder";
+        if (difference > 0) {
+          elements.splitRemainder.classList.add("short");
+          elements.splitRemainder.textContent = `あと ${yen(difference)} 割り当ててください`;
+        } else if (difference < 0) {
+          elements.splitRemainder.classList.add("over");
+          elements.splitRemainder.textContent = `${yen(-difference)} 多く割り当てています`;
+        } else {
+          elements.splitRemainder.classList.add("exact");
+          elements.splitRemainder.textContent = "ぴったり割り当てました";
+        }
       }
 
       function openExpenseSheet(expenseId = "") {
@@ -2986,16 +3137,37 @@
         const amount = Number(String(formData.get("amount") || "").replace(/[^\d.]/g, ""));
         const payerMemberId = String(formData.get("payer") || "");
         const debtorMemberIds = formData.getAll("debtor").map(String);
-        return { title, amount, payerMemberId, debtorMemberIds };
+        const splitMode = String(formData.get("splitMode") || "equal") === "custom" ? "custom" : "equal";
+        if (splitMode !== "custom") return { title, amount, payerMemberId, debtorMemberIds, splitMode };
+
+        // Only the enabled fields: a disabled input is somebody who was
+        // unchecked, and their old number is kept on screen but not owed.
+        const debtorAmounts = {};
+        elements.debtorOptions.querySelectorAll("input.debtor-amount:not(:disabled)").forEach((input) => {
+          debtorAmounts[input.dataset.memberId] = amountFromInput(input.value);
+        });
+        return { title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts };
       }
 
-      function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds }) {
+      function validateExpensePayload({ title, amount, payerMemberId, debtorMemberIds, splitMode, debtorAmounts }) {
         if (!canUseDatabase()) return unavailableMessage();
         if (!state.activeGroupId) return "先にグループを作成してください";
         if (!title) return "内容を入力してください";
         if (!Number.isFinite(amount) || amount <= 0) return "金額を数字で入力してください（例: 6655）";
         if (!memberById(payerMemberId)) return "支払った人を選んでください";
         if (debtorMemberIds.length === 0) return "割り勘する人を選んでください";
+        if (splitMode !== "custom") return "";
+
+        const missing = debtorMemberIds.some((memberId) => !Number.isFinite(debtorAmounts?.[memberId]));
+        if (missing) return "1人ずつの金額を数字で入力してください";
+
+        const assigned = debtorMemberIds.reduce((sum, memberId) => sum + debtorAmounts[memberId], 0);
+        // The server checks this too. Catching it here means the difference is
+        // named next to the fields that produced it, rather than as a toast
+        // after a round trip.
+        if (assigned !== Math.round(amount)) {
+          return `1人ずつの金額の合計（${yen(assigned)}）が総額（${yen(Math.round(amount))}）と一致しません`;
+        }
         return "";
       }
 
@@ -3817,6 +3989,28 @@
 
       elements.sheet.addEventListener("click", (event) => {
         if (event.target === elements.sheet) closeExpenseSheet();
+      });
+
+      elements.form.addEventListener("change", (event) => {
+        if (event.target.name === "splitMode") {
+          // Rebuild so the amount fields appear or disappear. The selection is
+          // read back off the form first, so switching to custom and back does
+          // not discard what was typed.
+          renderExpenseFormOptions({ ...currentExpenseFormSelection(), splitMode: event.target.value });
+          return;
+        }
+        if (event.target.name !== "debtor") return;
+        // Unchecking somebody takes them out of the total without throwing away
+        // the number they had, in case it was a misclick.
+        const field = event.target.closest(".check-card")?.querySelector("input.debtor-amount");
+        if (field) field.disabled = !event.target.checked;
+        updateSplitRemainder();
+      });
+
+      elements.form.addEventListener("input", (event) => {
+        if (event.target === elements.amount || event.target.classList.contains("debtor-amount")) {
+          updateSplitRemainder();
+        }
       });
 
       elements.groupSheet.addEventListener("click", (event) => {
