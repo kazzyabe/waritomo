@@ -546,4 +546,188 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
       (error) => error instanceof store.StoreError && error.statusCode === 404,
     );
   });
+  test("a custom split stores what each person owes and settles on those amounts", async () => {
+    // The calculation has understood custom splits all along; nothing could
+    // write one. Equal-split rows all store 0 in expense_debtors.amount, so
+    // this is the first path where that column carries meaning.
+    const { user, group, members } = await freshGroup();
+    const [a, b, c] = members;
+
+    const saved = await store.addExpense(group.id, user.id, {
+      title: "飲み放題つき",
+      amount: "6000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id, c.id],
+      splitMode: "custom",
+      debtorAmounts: { [a.id]: "1000", [b.id]: "2000", [c.id]: "3000" },
+    });
+
+    const expense = saved.expenses.find((current) => current.title === "飲み放題つき");
+    assert.equal(expense.splitMode, "custom");
+    assert.deepEqual(expense.debtorAmounts, { [a.id]: 1000, [b.id]: 2000, [c.id]: 3000 });
+
+    const settled = settlement.calculateSettlement(serverModule.settlementInputFromGroup(saved));
+    // A paid 6000 and owes 1000 of it, so the other two send their own shares.
+    assert.deepEqual(
+      [...settled.items].sort((left, right) => Number(right.amount) - Number(left.amount)),
+      [
+        { fromMemberId: c.id, toMemberId: a.id, amount: "3000" },
+        { fromMemberId: b.id, toMemberId: a.id, amount: "2000" },
+      ],
+    );
+  });
+
+  test("a custom split whose parts do not add up is refused at save time", async () => {
+    // settlement.js checks this too, but only when a settlement is calculated.
+    // Stored unchecked, the mismatch would surface later as a 500 on the
+    // settlement tab — our data failing to settle, which the person looking at
+    // it cannot fix.
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    await assert.rejects(
+      store.addExpense(group.id, user.id, {
+        title: "合わない",
+        amount: "3000",
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+        splitMode: "custom",
+        debtorAmounts: { [a.id]: "1000", [b.id]: "1000" },
+      }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+
+    const after = await store.getGroup(group.id, user.id);
+    assert.equal(after.expenses.length, 0, "the rejected expense left nothing behind");
+  });
+
+  test("a custom split missing somebody's amount is a 400, not a silent zero", async () => {
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    await assert.rejects(
+      store.addExpense(group.id, user.id, {
+        title: "誰かの金額がない",
+        amount: "3000",
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+        splitMode: "custom",
+        debtorAmounts: { [a.id]: "3000" },
+      }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+
+    // debtorAmounts has to be an object at all.
+    await assert.rejects(
+      store.addExpense(group.id, user.id, {
+        title: "形が違う",
+        amount: "3000",
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+        splitMode: "custom",
+        debtorAmounts: "3000",
+      }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+  });
+
+  test("somebody can owe nothing on a custom split", async () => {
+    // The non-drinker case, which is the whole point of the feature. The
+    // expense total is still > 0, so the sum check keeps this honest.
+    const { user, group, members } = await freshGroup();
+    const [a, b, c] = members;
+
+    const saved = await store.addExpense(group.id, user.id, {
+      title: "飲まない人がいる",
+      amount: "4000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id, c.id],
+      splitMode: "custom",
+      debtorAmounts: { [a.id]: "2000", [b.id]: "2000", [c.id]: "0" },
+    });
+
+    const expense = saved.expenses.find((current) => current.title === "飲まない人がいる");
+    assert.equal(expense.debtorAmounts[c.id], 0);
+
+    const settled = settlement.calculateSettlement(serverModule.settlementInputFromGroup(saved));
+    assert.deepEqual(settled.items, [{ fromMemberId: b.id, toMemberId: a.id, amount: "2000" }]);
+  });
+
+  test("editing between the two modes leaves nothing of the old one behind", async () => {
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    const created = await store.addExpense(group.id, user.id, {
+      title: "はじめは均等",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+    });
+    const expenseId = created.expenses[0].id;
+    assert.equal(created.expenses[0].splitMode, "equal");
+    assert.equal(created.expenses[0].debtorAmounts, null);
+
+    const toCustom = await store.updateExpense(group.id, expenseId, user.id, {
+      title: "個別にした",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+      splitMode: "custom",
+      debtorAmounts: { [a.id]: "500", [b.id]: "2500" },
+    });
+    assert.equal(toCustom.expenses[0].splitMode, "custom");
+    assert.deepEqual(toCustom.expenses[0].debtorAmounts, { [a.id]: 500, [b.id]: 2500 });
+
+    const backToEqual = await store.updateExpense(group.id, expenseId, user.id, {
+      title: "均等に戻した",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+    });
+    assert.equal(backToEqual.expenses[0].splitMode, "equal");
+    assert.equal(backToEqual.expenses[0].debtorAmounts, null);
+
+    // The per-person amounts are gone from the table, not merely hidden by the
+    // response — a stale 2500 outliving the mode that gave it meaning would
+    // come back as a wrong settlement the next time the mode changed.
+    const stored = await db.query("select amount::text from expense_debtors where expense_id = $1", [expenseId]);
+    assert.deepEqual(
+      stored.rows.map((row) => Number(row.amount)),
+      [0, 0],
+    );
+  });
+
+  test("a split mode we do not have is a 400", async () => {
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    await assert.rejects(
+      store.addExpense(group.id, user.id, {
+        title: "知らない分け方",
+        amount: "3000",
+        payerMemberId: a.id,
+        debtorMemberIds: [a.id, b.id],
+        splitMode: "percentage",
+      }),
+      (error) => error instanceof store.StoreError && error.statusCode === 400,
+    );
+  });
+
+  test("an expense saved without a split mode is still an equal one", async () => {
+    // Every row written before this feature existed. The field is optional on
+    // the way in and the response has to keep saying "equal" for them.
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    const saved = await store.addExpense(group.id, user.id, {
+      title: "モード指定なし",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+    });
+
+    assert.equal(saved.expenses[0].splitMode, "equal");
+    const settled = settlement.calculateSettlement(serverModule.settlementInputFromGroup(saved));
+    assert.deepEqual(settled.items, [{ fromMemberId: b.id, toMemberId: a.id, amount: "1500" }]);
+  });
 });

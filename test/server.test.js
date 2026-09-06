@@ -516,6 +516,49 @@ test("a group carrying an unsettleable expense still settles", () => {
   assert.deepEqual(settled.items, [{ fromMemberId: "m2", toMemberId: "m1", amount: "1500" }]);
 });
 
+test("a custom split is passed through with each person's own amount", () => {
+  const group = {
+    members: [{ id: "m1" }, { id: "m2" }],
+    expenses: [
+      {
+        payerMemberId: "m1",
+        title: "飲み放題つき",
+        amount: 3000,
+        debtorMemberIds: ["m1", "m2"],
+        splitMode: "custom",
+        debtorAmounts: { m1: 1000, m2: 2000 },
+      },
+    ],
+  };
+
+  const input = settlementInputFromGroup(group);
+
+  assert.equal(input.expenses[0].splitMode, "custom");
+  assert.deepEqual(input.expenses[0].debtors, [
+    { memberId: "m1", amount: "1000" },
+    { memberId: "m2", amount: "2000" },
+  ]);
+
+  const settled = calculateSettlement(input);
+  assert.deepEqual(settled.items, [{ fromMemberId: "m2", toMemberId: "m1", amount: "2000" }]);
+});
+
+test("an expense with no split mode on it is treated as an equal one", () => {
+  // What every expense stored before this feature looks like, and what a stale
+  // client cache still hands back. Reading it as anything but equal would
+  // silently change what those groups owe.
+  const group = {
+    members: [{ id: "m1" }, { id: "m2" }],
+    expenses: [{ payerMemberId: "m1", title: "居酒屋", amount: 3000, debtorMemberIds: ["m1", "m2"] }],
+  };
+
+  const input = settlementInputFromGroup(group);
+
+  assert.equal(input.expenses[0].splitMode, "equal");
+  assert.deepEqual(input.expenses[0].debtors, [{ memberId: "m1" }, { memberId: "m2" }]);
+  assert.deepEqual(calculateSettlement(input).items, [{ fromMemberId: "m2", toMemberId: "m1", amount: "1500" }]);
+});
+
 test("a request target that is not origin-form is a 400, not a 500", async () => {
   // `new URL("//", base)` throws, and it used to throw outside the try in
   // serveStatic — an unauthenticated stack trace generator. The authority and

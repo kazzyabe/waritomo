@@ -149,9 +149,17 @@ export function settlementInputFromGroup(group) {
     expenses: settleable.map((expense) => ({
       payerMemberId: expense.payerMemberId,
       title: expense.title,
-      splitMode: "equal",
+      // An expense stored before split_mode was written through has no mode on
+      // it, and equal is what those rows have always meant.
+      splitMode: expense.splitMode ?? "equal",
       amount: String(expense.amount),
-      debtors: expense.debtorMemberIds.map((memberId) => ({ memberId })),
+      debtors:
+        expense.splitMode === "custom"
+          ? expense.debtorMemberIds.map((memberId) => ({
+              memberId,
+              amount: String(expense.debtorAmounts?.[memberId] ?? 0),
+            }))
+          : expense.debtorMemberIds.map((memberId) => ({ memberId })),
     })),
   };
 }
