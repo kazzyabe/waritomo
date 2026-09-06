@@ -3498,6 +3498,88 @@
         return data.permanentLink || data.endpointUrl || location.href;
       }
 
+      function settlementFlexRow(item) {
+        const from = memberById(item.fromMemberId)?.name ?? "不明";
+        const to = memberById(item.toMemberId)?.name ?? "不明";
+        return {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            { type: "text", text: `${from} → ${to}`, size: "sm", color: "#3c3c3c", flex: 3, wrap: true },
+            { type: "text", text: yen(item.amount), size: "sm", color: "#3c3c3c", flex: 2, align: "end" },
+          ],
+        };
+      }
+
+      function buildSettlementFlexBubble(link) {
+        const items = settlement.items ?? [];
+        const shown = items.slice(0, 5);
+        const overflowCount = items.length - shown.length;
+
+        const bodyContents = [
+          { type: "text", text: state.groupName || "ワリトモ", size: "sm", color: "#767676", wrap: true },
+          { type: "text", text: yen(totalExpenses()), size: "xxl", weight: "bold", color: "#3c3c3c", margin: "sm" },
+          { type: "separator", margin: "md" },
+        ];
+
+        if (shown.length === 0) {
+          bodyContents.push({
+            type: "text",
+            text: "清算は不要です",
+            size: "sm",
+            color: "#3c3c3c",
+            margin: "md",
+          });
+        } else {
+          shown.forEach((item, index) => {
+            bodyContents.push(
+              Object.assign(settlementFlexRow(item), { margin: index === 0 ? "md" : "sm" }),
+            );
+          });
+          if (overflowCount > 0) {
+            bodyContents.push({
+              type: "text",
+              text: `ほか${overflowCount}件`,
+              size: "xs",
+              color: "#767676",
+              margin: "sm",
+            });
+          }
+        }
+
+        return {
+          type: "bubble",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#06c755",
+            paddingAll: "16px",
+            contents: [
+              { type: "text", text: "ワリトモ・精算", color: "#ffffff", weight: "bold", size: "md" },
+            ],
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "16px",
+            contents: bodyContents,
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "12px",
+            contents: [
+              {
+                type: "button",
+                style: "link",
+                height: "sm",
+                action: { type: "uri", label: "開いて確認する", uri: link },
+              },
+            ],
+          },
+        };
+      }
+
       function settlementText(link) {
         const lines = [`${state.groupName}の清算`, `合計 ${yen(totalExpenses())}`];
         if (settlement.items?.length) {
