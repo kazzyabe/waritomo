@@ -3606,13 +3606,21 @@
         ].join("\n");
       }
 
+      // LINE's Flex Message altText field has a documented 400-character limit;
+      // unlike a plain text message, exceeding it makes shareTargetPicker reject.
+      function flexAltText(text) {
+        return text.length > 400 ? text.slice(0, 400) : text;
+      }
+
       async function shareSettlement() {
         const link = await inviteLink();
         const text = settlementText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
+          // altText is the plain-text fallback/notification preview LINE shows;
+          // contents is the actual Flex bubble rendered in the chat.
           await liff.shareTargetPicker([
-            { type: "flex", altText: text, contents: buildSettlementFlexBubble(link) },
+            { type: "flex", altText: flexAltText(text), contents: buildSettlementFlexBubble(link) },
           ]);
           trackEvent("settlement_shared", { method: "share_target_picker" });
           showToast("LINEで共有しました");
@@ -3625,6 +3633,7 @@
       }
 
       async function requestPayment(key) {
+        // Intentionally left as a plain-text message (out of scope for the Flex conversion).
         const item = (settlement.items ?? []).find((candidate) => settlementItemKey(candidate) === key);
         if (!item) return;
 
@@ -3749,8 +3758,10 @@
         const text = inviteText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
+          // altText is the plain-text fallback/notification preview LINE shows;
+          // contents is the actual Flex bubble rendered in the chat.
           await liff.shareTargetPicker([
-            { type: "flex", altText: text, contents: buildInviteFlexBubble(link) },
+            { type: "flex", altText: flexAltText(text), contents: buildInviteFlexBubble(link) },
           ]);
           trackEvent("invite_shared", { method: "share_target_picker" });
           showToast("LINEで招待を送りました");
