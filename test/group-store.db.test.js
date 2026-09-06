@@ -292,4 +292,241 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     const groups = await store.listGroups(user.id);
     assert.equal(groups.length, 0, "the rejected group left nothing behind");
   });
+  // A second person, so "somebody else's group" is a real user rather than an
+  // id nothing ever issued. Access is refused the same way either way, but
+  // only this version proves the refusal is about membership.
+  async function otherUser(label) {
+    return users.upsertDatabaseLineUser({ sub: `Uother_${runId}_${label}`, name: "別の人", picture: null });
+  }
+
+  test("a group goes through its whole life", async () => {
+    const { user, group } = await freshGroup();
+
+    const listed = await store.listGroups(user.id);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].groupName, "テスト旅行");
+    assert.equal(listed[0].canManage, true);
+
+    const renamed = await store.updateGroup(group.id, user.id, { name: "沖縄旅行" });
+    assert.equal(renamed.groupName, "沖縄旅行");
+
+    const completed = await store.updateGroup(group.id, user.id, { completed: true });
+    assert.ok(completed.completedAt, "完了にすると completedAt が立つ");
+    const reopened = await store.updateGroup(group.id, user.id, { completed: false });
+    assert.equal(reopened.completedAt, null);
+
+    assert.deepEqual(await store.deleteGroup(group.id, user.id), { deleted: true });
+    assert.equal((await store.listGroups(user.id)).length, 0);
+
+    // Gone means gone: the owner's own read now looks like anyone else's.
+    await assert.rejects(
+      store.getGroup(group.id, user.id),
+      (error) => error instanceof store.StoreError && error.statusCode === 404,
+    );
+  });
+
+  test("somebody else's group is not there at all", async () => {
+    // 404 rather than 403 throughout: answering "forbidden" would confirm the
+    // id exists to anyone who guessed it.
+    const { group } = await freshGroup();
+    const stranger = await otherUser("stranger");
+
+    const notFound = (error) => error instanceof store.StoreError && error.statusCode === 404;
+
+    await assert.rejects(store.getGroup(group.id, stranger.id), notFound);
+    await assert.rejects(store.updateGroup(group.id, stranger.id, { name: "乗っ取り" }), notFound);
+    await assert.rejects(store.deleteGroup(group.id, stranger.id), notFound);
+    await assert.rejects(store.addMember(group.id, stranger.id, { name: "侵入者" }), notFound);
+    await assert.rejects(
+      store.addExpense(group.id, stranger.id, {
+        title: "他人の支払い",
+        amount: "1000",
+        payerMemberId: group.members[0].id,
+        debtorMemberIds: [group.members[0].id],
+      }),
+      notFound,
+    );
+    assert.equal((await store.listGroups(stranger.id)).length, 0, "他人のグループは一覧にも出ない");
+  });
+
+  test("a member can do member things but not owner things", async () => {
+    // ensureGroupAccess and ensureGroupOwner are different gates, and only a
+    // joined non-owner can tell them apart.
+    const { user, group } = await freshGroup();
+    const guest = await otherUser("guest");
+
+    const joined = await store.joinGroupByInvite(group.id, guest, {
+      token: group.inviteToken,
+      memberId: group.members[1].id,
+    });
+    assert.equal(joined.canManage, false, "参加しただけの人は管理者ではない");
+
+    // Access: adding an expense is fine.
+    const withExpense = await store.addExpense(group.id, guest.id, {
+      title: "参加者が足した支払い",
+      amount: "1200",
+      payerMemberId: group.members[1].id,
+      debtorMemberIds: [group.members[0].id, group.members[1].id],
+    });
+    assert.equal(withExpense.expenses.length, 1);
+
+    // Ownership: renaming and deleting are not.
+    const notFound = (error) => error instanceof store.StoreError && error.statusCode === 404;
+    await assert.rejects(store.updateGroup(group.id, guest.id, { name: "勝手に改名" }), notFound);
+    await assert.rejects(store.deleteGroup(group.id, guest.id), notFound);
+
+    // The owner still sees it as their own.
+    assert.equal((await store.getGroup(group.id, user.id)).canManage, true);
+  });
+
+  test("an invite is only good with its own token", async () => {
+    const { group } = await freshGroup();
+    const guest = await otherUser("badtoken");
+    const inviteNotFound = (error) => error instanceof store.StoreError && error.statusCode === 404;
+
+    // The preview is the unauthenticated half, so a wrong token must not leak
+    // the group's name or who is in it.
+    await assert.rejects(store.getInvitePreview(group.id, "not-the-token"), inviteNotFound);
+    await assert.rejects(store.getInvitePreview(group.id, ""), (error) => error.statusCode === 400);
+
+    const preview = await store.getInvitePreview(group.id, group.inviteToken);
+    assert.equal(preview.groupName, "テスト旅行");
+    // createGroup links its creator to the first member, so that seat is the
+    // one already taken and the rest are open.
+    assert.deepEqual(
+      preview.members.map((member) => member.available),
+      [false, true, true],
+      "作成者の枠だけ埋まっている",
+    );
+
+    await assert.rejects(
+      store.joinGroupByInvite(group.id, guest, { token: "not-the-token", name: "ゲスト" }),
+      inviteNotFound,
+    );
+
+    // A token from a different group does not open this one either.
+    const { group: otherGroup } = await freshGroup();
+    await assert.rejects(
+      store.joinGroupByInvite(group.id, guest, { token: otherGroup.inviteToken, name: "ゲスト" }),
+      inviteNotFound,
+    );
+  });
+
+  test("joining twice does not make two of you", async () => {
+    const { group } = await freshGroup();
+    const guest = await otherUser("twice");
+
+    const first = await store.joinGroupByInvite(group.id, guest, {
+      token: group.inviteToken,
+      memberId: group.members[2].id,
+    });
+    assert.equal(first.members.length, 3);
+
+    // Reopening the link — the invite screen is a normal URL people revisit.
+    const second = await store.joinGroupByInvite(group.id, guest, { token: group.inviteToken, name: "ぜんぜん別の名前" });
+    assert.equal(second.members.length, 3, "2回目の参加でメンバーは増えない");
+    assert.equal(
+      second.members.filter((member) => member.linkedToCurrentUser).length,
+      1,
+      "自分に紐づくメンバーはひとつだけ",
+    );
+  });
+
+  test("a name already taken by somebody who joined is refused", async () => {
+    const { group } = await freshGroup();
+    const first = await otherUser("name_first");
+    const second = await otherUser("name_second");
+
+    // Free name -> takes the empty seat rather than adding a row.
+    const afterFirst = await store.joinGroupByInvite(group.id, first, { token: group.inviteToken, name: "さき" });
+    assert.equal(afterFirst.members.length, 3, "空いていた同名の枠に入る");
+
+    // Same name, now occupied.
+    await assert.rejects(
+      store.joinGroupByInvite(group.id, second, { token: group.inviteToken, name: "さき" }),
+      (error) => error instanceof store.StoreError && error.statusCode === 409,
+    );
+
+    // Case is not a way around it.
+    const { group: caseGroup } = await freshGroup();
+    const upper = await otherUser("case_upper");
+    const lower = await otherUser("case_lower");
+    await store.joinGroupByInvite(caseGroup.id, upper, { token: caseGroup.inviteToken, name: "Taro" });
+    await assert.rejects(
+      store.joinGroupByInvite(caseGroup.id, lower, { token: caseGroup.inviteToken, name: "taro" }),
+      (error) => error instanceof store.StoreError && error.statusCode === 409,
+    );
+
+    // A name nobody has is still fine, and does add a row.
+    const third = await otherUser("name_third");
+    const added = await store.joinGroupByInvite(group.id, third, { token: group.inviteToken, name: "あたらしい人" });
+    assert.equal(added.members.length, 4);
+  });
+
+  test("claiming a member moves you, it does not clone you", async () => {
+    const { user, group } = await freshGroup();
+    const [a, b, c] = group.members;
+
+    const claimedB = await store.claimMember(group.id, b.id, user.id);
+    assert.deepEqual(
+      claimedB.members.filter((member) => member.linkedToCurrentUser).map((member) => member.id),
+      [b.id],
+    );
+
+    // Claiming a second one has to release the first, or one person is two
+    // people in the same settlement.
+    const claimedC = await store.claimMember(group.id, c.id, user.id);
+    assert.deepEqual(
+      claimedC.members.filter((member) => member.linkedToCurrentUser).map((member) => member.id),
+      [c.id],
+    );
+    assert.equal(claimedC.members.find((member) => member.id === b.id).available, true);
+
+    // Somebody else's claimed seat is a conflict, not a takeover.
+    const guest = await otherUser("claim");
+    await store.joinGroupByInvite(group.id, guest, { token: group.inviteToken, memberId: a.id });
+    await assert.rejects(
+      store.claimMember(group.id, a.id, user.id),
+      (error) => error instanceof store.StoreError && error.statusCode === 409,
+    );
+
+    await assert.rejects(
+      store.claimMember(group.id, "mem_does_not_exist", user.id),
+      (error) => error instanceof store.StoreError && error.statusCode === 404,
+    );
+  });
+
+  test("you can unlink yourself, and the owner can unlink anyone", async () => {
+    const { user, group } = await freshGroup();
+    const guest = await otherUser("unlink");
+    const [, b] = group.members;
+
+    await store.joinGroupByInvite(group.id, guest, { token: group.inviteToken, memberId: b.id });
+
+    // The guest lets go of their own seat. They are no longer in the group, so
+    // there is no group left to hand back.
+    assert.deepEqual(await store.unlinkMember(group.id, b.id, guest.id), { unlinked: true, groupId: group.id });
+    assert.equal((await store.getGroup(group.id, user.id)).members.find((member) => member.id === b.id).available, true);
+
+    // The owner may unlink somebody else; a plain member may not.
+    const otherGuest = await otherUser("unlink_other");
+    const bystander = await otherUser("unlink_bystander");
+    await store.joinGroupByInvite(group.id, otherGuest, { token: group.inviteToken, memberId: b.id });
+    await store.joinGroupByInvite(group.id, bystander, { token: group.inviteToken, name: "傍観者" });
+
+    await assert.rejects(
+      store.unlinkMember(group.id, b.id, bystander.id),
+      (error) => error instanceof store.StoreError && error.statusCode === 403,
+    );
+
+    const afterOwner = await store.unlinkMember(group.id, b.id, user.id);
+    assert.equal(afterOwner.members.find((member) => member.id === b.id).available, true);
+
+    // And a stranger cannot reach the group at all.
+    const stranger = await otherUser("unlink_stranger");
+    await assert.rejects(
+      store.unlinkMember(group.id, b.id, stranger.id),
+      (error) => error instanceof store.StoreError && error.statusCode === 404,
+    );
+  });
 });
