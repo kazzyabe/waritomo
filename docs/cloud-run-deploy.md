@@ -97,3 +97,26 @@ https://miniapp.line.me/YOUR_LIFF_ID
 ## Cheapest Operation
 
 For the lowest-cost MVP profile, see [Cheapest GCP Operations](cheap-ops.md).
+
+## gcloud Account Split
+
+The `walica-next` project (see [Cheapest GCP Operations](cheap-ops.md) for the
+instance name) grants Cloud Run and Cloud SQL access to different accounts:
+
+- Cloud Run deploy and describe: `ogawa@thiasos.jp`.
+- Cloud SQL (`gcloud sql instances describe/patch`, `gcloud sql backups list`,
+  `gcloud services list`): `ryoto.ogawa@plusinsight.co.jp`. The Cloud Run
+  account gets `does not have permission to access projects instance
+  [walica-next]` on every `gcloud sql` and `gcloud services` call.
+
+`scripts/gcp-db-stop.sh`, `gcp-db-start.sh`, and `gcp-cheap-status.sh` all call
+`gcloud sql`, so run them with the Cloud SQL account:
+
+```sh
+gcloud sql instances describe waritomo-db --project walica-next \
+  --account ryoto.ogawa@plusinsight.co.jp \
+  --format='yaml(settings.backupConfiguration,settings.activationPolicy)'
+```
+
+or set it as the active account for the session with
+`gcloud config set account ryoto.ogawa@plusinsight.co.jp` first.
