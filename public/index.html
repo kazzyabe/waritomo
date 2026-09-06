@@ -3611,7 +3611,9 @@
         const text = settlementText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
-          await liff.shareTargetPicker([{ type: "text", text }]);
+          await liff.shareTargetPicker([
+            { type: "flex", altText: text, contents: buildSettlementFlexBubble(link) },
+          ]);
           trackEvent("settlement_shared", { method: "share_target_picker" });
           showToast("LINEで共有しました");
           return;
@@ -3747,7 +3749,9 @@
         const text = inviteText(link);
 
         if (window.liff?.isInClient?.() && window.liff?.isApiAvailable?.("shareTargetPicker")) {
-          await liff.shareTargetPicker([{ type: "text", text }]);
+          await liff.shareTargetPicker([
+            { type: "flex", altText: text, contents: buildInviteFlexBubble(link) },
+          ]);
           trackEvent("invite_shared", { method: "share_target_picker" });
           showToast("LINEで招待を送りました");
         } else {
