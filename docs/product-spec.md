@@ -49,9 +49,9 @@ LINE.
 
 ### Confirm Settlement
 
-1. Sender or receiver marks a payback item as paid.
-2. Other side can confirm it.
-3. Settlement history remains visible.
+1. Any group member marks a payback item as paid once the transfer is done.
+2. The mark is shared with the whole group, and anyone can undo it.
+3. Marked items stay in the settlement list so the group can see what is left.
 
 ### Manage Group
 
@@ -86,6 +86,8 @@ LINE.
 
 - The app has no password account system. LINE identity is the primary identity.
 - A group member can exist before a LINE user claims it.
+- Marking a payback as paid is one-sided. Requiring the receiver to confirm
+  would leave the ledger stuck whenever they never open the app.
 - Expense edits are collaborative by default in MVP; audit log makes changes transparent.
 - Base currency settlement is required; multi-currency expenses use a stored rate snapshot.
 - The product should work even if target picker is unavailable, via copyable permanent links.
