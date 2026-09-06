@@ -107,8 +107,11 @@ and reopens it when `false`.
 
 ### `DELETE /api/groups/:groupId`
 
-Deletes a group and its members, expenses, and settlement confirmations. Owner
-only.
+Archives a group: it leaves every listing, its own page, and its invite link,
+and a second call is a 404. Owner only. The rows stay behind `groups.archived_at`
+rather than being erased, so a group deleted by mistake can be handed back with
+`update groups set archived_at = null where id = ...`. There is no restore in the
+app, and the confirmation says so.
 
 ### `GET /api/invites/:inviteToken`
 

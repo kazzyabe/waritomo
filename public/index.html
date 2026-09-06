@@ -2807,6 +2807,17 @@
         const completed = isCurrentGroupCompleted();
         const memberNameDraft = document.getElementById("member-name")?.value ?? "";
         const memberNameFocused = document.activeElement?.id === "member-name";
+
+        // The API refuses to remove anyone a payment names, because doing it
+        // would rewrite what everybody else owes. Take the button away rather
+        // than let the tap fail, the way the rest of this screen does.
+        const onAPayment = new Set();
+        state.expenses.forEach((expense) => {
+          onAPayment.add(expense.payerMemberId);
+          expense.debtorMemberIds.forEach((memberId) => onAPayment.add(memberId));
+        });
+        const someoneIsHeldByAPayment = state.members.some((member) => onAPayment.has(member.id));
+
         const rows = state.members
           .map(
             (member) => {
@@ -2817,7 +2828,7 @@
                   ? `<button class="mini-action" type="button" data-claim-member="${escapeHtml(member.id)}">自分にする</button>`
                   : `<span class="tag">参加済み</span>`;
               const deleteAction =
-                !completed && state.members.length > 2
+                !completed && state.members.length > 2 && !onAPayment.has(member.id)
                   ? `<button class="mini-action danger" type="button" data-delete-member="${escapeHtml(member.id)}">削除</button>`
                   : "";
               return `
@@ -2843,6 +2854,11 @@
               <span class="tag">${state.members.length}人</span>
             </div>
             <div class="section-body">${rows}</div>
+            ${
+              !completed && someoneIsHeldByAPayment
+                ? `<p class="hint section-note">支払いに登場するメンバーは削除できません。先にその支払いを消すか、割り勘する人から外してください。</p>`
+                : ""
+            }
             ${
               currentUserMember()
                 ? `<p class="hint section-note">自分の行が違う人になっている場合は「解除」を押してください。そのメンバーは招待リンクから本人が選べるようになります。</p>`

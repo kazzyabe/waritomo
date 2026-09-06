@@ -614,25 +614,43 @@ export async function deleteMember(groupId, memberId, userId) {
     ]);
     if (!memberResult.rows[0]) throw new StoreError(404, "member_not_found", "メンバーが見つかりません");
 
-    await client.query(
-      "delete from expense_debtors where expense_id in (select id from expenses where payer_member_id = $1)",
-      [memberId],
-    );
-    await client.query("delete from expenses where payer_member_id = $1", [memberId]);
-    await client.query("delete from expense_debtors where member_id = $1", [memberId]);
-
-    // An expense whose only debtor was this member now has none, and an expense
-    // nobody owes anything for cannot be settled. It went out with them. Not
-    // filtered on deleted_at: a soft-deleted one is the same unsettleable shape
-    // held in reserve, and restoring it would bring the bug back with it.
-    await client.query(
+    // Every expense that names this member, as the payer or as one of the
+    // people splitting it.
+    const touchedResult = await client.query(
       `
-        delete from expenses
-        where group_id = $1
-          and not exists (select 1 from expense_debtors where expense_id = expenses.id)
+        select e.id, e.deleted_at
+        from expenses e
+        where e.group_id = $1
+          and (
+            e.payer_member_id = $2
+            or exists (select 1 from expense_debtors d where d.expense_id = e.id and d.member_id = $2)
+          )
       `,
-      [groupId],
+      [groupId, memberId],
     );
+
+    // Money already on the books is not something removing a member may
+    // rewrite. This used to delete the expenses they paid for and the debtor
+    // rows they held, so one tap changed what everybody else owed and left
+    // behind expenses nobody owed anything for (#35). Somebody who spent money
+    // is removed by fixing those payments first, in the open.
+    if (touchedResult.rows.some((row) => row.deleted_at === null)) {
+      throw new StoreError(
+        400,
+        "member_has_expenses",
+        "支払いに登場するメンバーは削除できません。先にその支払いを消すか、割り勘する人から外してください",
+      );
+    }
+
+    // What is left can only be soft-deleted expenses: already gone from every
+    // screen, restored by nothing. Neither payer_member_id nor
+    // expense_debtors.member_id cascades, so those rows go with the member
+    // instead of failing the delete with a foreign key violation.
+    const strandedIds = touchedResult.rows.map((row) => row.id);
+    if (strandedIds.length > 0) {
+      await client.query("delete from expense_debtors where expense_id = any($1)", [strandedIds]);
+      await client.query("delete from expenses where id = any($1)", [strandedIds]);
+    }
 
     // Before the member row goes, not after: settlement_confirmations points at
     // group_members with no ON DELETE CASCADE, so a member who appears in any
@@ -796,16 +814,15 @@ export async function deleteGroup(groupId, userId) {
   return withTransaction(async (client) => {
     await ensureGroupOwner(client, groupId, userId);
 
-    await client.query("delete from settlement_confirmations where group_id = $1", [groupId]);
-    await client.query(
-      "delete from expense_debtors where expense_id in (select id from expenses where group_id = $1)",
-      [groupId],
-    );
-    await client.query("delete from expenses where group_id = $1", [groupId]);
-    await client.query("delete from group_currencies where group_id = $1", [groupId]);
-    await client.query("delete from audit_events where group_id = $1", [groupId]);
-    await client.query("delete from group_members where group_id = $1", [groupId]);
-    await client.query("delete from groups where id = $1", [groupId]);
+    // Archive instead of emptying every table. This is one tap behind one
+    // confirm, and it was the only thing in the app that destroyed other
+    // people's records with no way back for them or for us. Every read path —
+    // the list, the group, the invite preview, joining by invite —
+    // already filters on archived_at, so this line is the whole disappearance.
+    // The screen still says 元に戻せません because no restore exists to offer;
+    // what this buys is a group that can be handed back by hand, and a place
+    // for that restore to come from later.
+    await client.query("update groups set archived_at = now(), updated_at = now() where id = $1", [groupId]);
 
     return { deleted: true };
   });

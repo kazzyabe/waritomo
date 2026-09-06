@@ -139,11 +139,13 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     const { user, group, members } = await freshGroup();
     const [a, b, c] = members;
 
+    // b is on no expense of their own: one that they were part of could not be
+    // deleted at all now, and this is here for the foreign key, not for that.
     await store.addExpense(group.id, user.id, {
       title: "居酒屋",
       amount: "3000",
       payerMemberId: a.id,
-      debtorMemberIds: [a.id, b.id, c.id],
+      debtorMemberIds: [a.id, c.id],
     });
 
     await store.setSettlementConfirmation(group.id, user.id, {
@@ -159,9 +161,51 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
     assert.ok(!remaining.members.some((member) => member.id === b.id));
   });
 
-  test("removing a member takes the expenses only they owed with them", async () => {
-    // An expense with no debtors left is unsettleable, and calculateSettlement
-    // refuses the whole group over it — so the settlement 500'd from then on.
+  test("a member who is on a payment cannot be removed", async () => {
+    // This used to delete the expenses they paid for and the debtor rows they
+    // held, so one tap on 削除 silently rewrote what everybody else owed — and
+    // left behind expenses nobody owed anything for, which is #35. Money that
+    // is already on the books is not something a member deletion may rewrite.
+    const { user, group, members } = await freshGroup();
+    const [a, b, c] = members;
+
+    await store.addExpense(group.id, user.id, {
+      title: "居酒屋",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id, c.id],
+    });
+
+    const refused = (error) =>
+      error instanceof store.StoreError && error.statusCode === 400 && error.code === "member_has_expenses";
+
+    await assert.rejects(store.deleteMember(group.id, a.id, user.id), refused, "払った人は消せない");
+    await assert.rejects(store.deleteMember(group.id, c.id, user.id), refused, "割り勘に入っているだけの人も消せない");
+
+    const untouched = await store.getGroup(group.id, user.id);
+    assert.equal(untouched.members.length, 3, "断られた側で人数は変わらない");
+    assert.equal(untouched.expenses.length, 1, "支払いもそのまま残る");
+    assert.deepEqual(
+      [...untouched.expenses[0].debtorMemberIds].sort(),
+      [a.id, b.id, c.id].sort(),
+      "割り勘の顔ぶれも書き換わらない",
+    );
+
+    // And the group still settles, which is what #35 broke. b and c owe the
+    // same amount, so which of the two is named first comes down to their
+    // generated ids — sorted, or this passes or fails at random.
+    const settled = settlement.calculateSettlement(serverModule.settlementInputFromGroup(untouched));
+    const byPayer = (left, right) => left.fromMemberId.localeCompare(right.fromMemberId);
+    assert.deepEqual(
+      [...settled.items].sort(byPayer),
+      [
+        { fromMemberId: b.id, toMemberId: a.id, amount: "1000" },
+        { fromMemberId: c.id, toMemberId: a.id, amount: "1000" },
+      ].sort(byPayer),
+    );
+  });
+
+  test("a member who is on no payment at all still goes", async () => {
     const { user, group, members } = await freshGroup();
     const [a, b, c] = members;
 
@@ -171,28 +215,73 @@ describe("group store against a real database", { skip: databaseUrl ? false : "W
       payerMemberId: a.id,
       debtorMemberIds: [a.id, b.id],
     });
-    await store.addExpense(group.id, user.id, {
+
+    const remaining = await store.deleteMember(group.id, c.id, user.id);
+
+    assert.ok(!remaining.members.some((member) => member.id === c.id));
+    assert.equal(remaining.expenses.length, 1, "他人の支払いは巻き込まれない");
+  });
+
+  test("a member left only on deleted payments goes, and takes them along", async () => {
+    // A soft-deleted expense is already gone as far as the screen is concerned
+    // and nothing restores one, so refusing over it would strand the member
+    // with no way for anyone to see why. The rows still have to go: neither
+    // expenses.payer_member_id nor expense_debtors.member_id cascades, so
+    // leaving them raises 23503 on the member row.
+    const { user, group, members } = await freshGroup();
+    const [a, , c] = members;
+
+    const paidByC = await store.addExpense(group.id, user.id, {
       title: "たろうのタクシー代",
       amount: "5000",
-      payerMemberId: a.id,
+      payerMemberId: c.id,
       debtorMemberIds: [c.id],
     });
+    const owedByC = await store.addExpense(group.id, user.id, {
+      title: "コンビニ",
+      amount: "800",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, c.id],
+    });
+    for (const mutated of [paidByC, owedByC]) {
+      await store.deleteExpense(group.id, mutated.expenses[0].id, user.id);
+    }
 
-    await store.deleteMember(group.id, c.id, user.id);
-    const remaining = await store.getGroup(group.id, user.id);
+    const remaining = await store.deleteMember(group.id, c.id, user.id);
+    assert.ok(!remaining.members.some((member) => member.id === c.id));
 
-    assert.deepEqual(
-      remaining.expenses.map((expense) => expense.title),
-      ["居酒屋"],
-    );
-    assert.equal(
-      remaining.expenses.filter((expense) => expense.debtorMemberIds.length === 0).length,
-      0,
-      "no expense is left with nobody owing anything",
-    );
+    const left = await db.query("select count(*)::int as count from expenses where group_id = $1", [group.id]);
+    assert.equal(left.rows[0].count, 0, "消えていた支払いの行自体も残らない");
+  });
 
-    const settled = settlement.calculateSettlement(serverModule.settlementInputFromGroup(remaining));
-    assert.deepEqual(settled.items, [{ fromMemberId: b.id, toMemberId: a.id, amount: "1500" }]);
+  test("deleting a group hides it without destroying what it held", async () => {
+    // The old deleteGroup emptied every table row by row, so a mistap by the
+    // owner took the whole trip with it and left nothing to recover by hand
+    // either. Every read path already filters on groups.archived_at, so the
+    // rows can stay while the group goes.
+    const { user, group, members } = await freshGroup();
+    const [a, b] = members;
+
+    await store.addExpense(group.id, user.id, {
+      title: "居酒屋",
+      amount: "3000",
+      payerMemberId: a.id,
+      debtorMemberIds: [a.id, b.id],
+    });
+
+    assert.deepEqual(await store.deleteGroup(group.id, user.id), { deleted: true });
+
+    const notFound = (error) => error instanceof store.StoreError && error.statusCode === 404;
+    assert.equal((await store.listGroups(user.id)).length, 0, "一覧から消える");
+    await assert.rejects(store.getGroup(group.id, user.id), notFound, "直接開いても無い");
+    await assert.rejects(store.getInvitePreview(group.id, group.inviteToken), notFound, "招待リンクも死ぬ");
+    await assert.rejects(store.deleteGroup(group.id, user.id), notFound, "二度目の削除は通らない");
+
+    // But the rows are still there for anyone with database access to restore.
+    const archived = await db.query("select archived_at from groups where id = $1", [group.id]);
+    assert.ok(archived.rows[0]?.archived_at, "行は archived_at 付きで残る");
+    const expenses = await db.query("select count(*)::int as count from expenses where group_id = $1", [group.id]);
+    assert.equal(expenses.rows[0].count, 1, "支払いも消えていない");
   });
 
   test("an amount the column cannot hold is refused before pg sees it", async () => {
