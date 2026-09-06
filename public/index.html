@@ -1059,7 +1059,19 @@
       .checkbox-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        gap: 10px;
+      }
+
+      /* The split section is two separate questions - how to divide, and who
+         to divide between. They look alike, so the gap has to say they aren't. */
+      .split-field {
+        display: grid;
+        gap: 20px;
+      }
+
+      .split-block {
+        display: grid;
+        gap: 10px;
       }
 
       .check-card {
@@ -1083,12 +1095,25 @@
         accent-color: var(--line);
       }
 
+      .check-card > span {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      /* Two columns is right for names alone. Once every card also carries an
+         amount field there is no width left, and the name gets wrapped down to
+         one character per line. */
+      #debtor-options:has(.debtor-amount) {
+        grid-template-columns: 1fr;
+      }
+
       /* The per-person amount on a custom split. It sits inside the same card
          as the checkbox, so the name and the amount stay one thing. */
       .check-card .debtor-amount {
-        width: 100%;
+        flex: 0 0 112px;
+        width: auto;
         min-width: 0;
-        min-height: 34px;
+        min-height: 38px;
         padding: 4px 8px;
         border: 2px solid var(--border);
         border-radius: var(--radius-sm);
@@ -1154,8 +1179,8 @@
 
       .sheet-body {
         display: grid;
-        gap: 14px;
-        padding: 16px;
+        gap: 20px;
+        padding: 20px 16px;
       }
 
       .interstitial-ad {
@@ -1196,6 +1221,12 @@
         color: var(--danger);
         font-size: 12px;
         font-weight: 800;
+      }
+
+      /* With nothing to say it still held a row plus two gaps, which pushed the
+         submit button off a short screen. */
+      .error-text:empty {
+        display: none;
       }
 
       .toast {
@@ -1263,8 +1294,8 @@
 
       .sentence {
         display: grid;
-        gap: 12px;
-        padding: 16px;
+        gap: 14px;
+        padding: 18px 16px;
         border: 2px solid var(--border);
         border-radius: var(--radius);
         background: var(--soft);
@@ -1274,7 +1305,7 @@
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
       }
 
       .particle {
@@ -1610,19 +1641,24 @@
             </div>
             <span id="expense-amount-help" class="field-help">金額は数字だけで入力してください。カンマ・円マークは不要です。</span>
           </div>
-          <div>
-            <div class="caption">この支払いを分けるのは</div>
-            <div id="split-mode-options" class="checkbox-grid">
-              <label class="check-card">
-                <input type="radio" name="splitMode" value="equal" checked />
-                <span>均等に割る</span>
-              </label>
-              <label class="check-card">
-                <input type="radio" name="splitMode" value="custom" />
-                <span>1人ずつ指定</span>
-              </label>
+          <div class="split-field">
+            <div class="split-block">
+              <div class="caption">分け方</div>
+              <div id="split-mode-options" class="checkbox-grid">
+                <label class="check-card">
+                  <input type="radio" name="splitMode" value="equal" checked />
+                  <span>均等に割る</span>
+                </label>
+                <label class="check-card">
+                  <input type="radio" name="splitMode" value="custom" />
+                  <span>1人ずつ指定</span>
+                </label>
+              </div>
             </div>
-            <div id="debtor-options" class="checkbox-grid"></div>
+            <div class="split-block">
+              <div class="caption">この支払いを分ける人</div>
+              <div id="debtor-options" class="checkbox-grid"></div>
+            </div>
             <div id="split-remainder" class="field-help" aria-live="polite" hidden></div>
           </div>
           <div id="form-error" class="error-text" aria-live="polite"></div>
