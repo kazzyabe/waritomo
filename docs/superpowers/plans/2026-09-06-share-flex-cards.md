@@ -432,3 +432,14 @@ git status
 ```
 
 Expected: `public/index.html`以外に変更ファイルがない。
+
+---
+
+## 実装後の修正（コードレビューで検出）
+
+各タスクの実装後、spec compliance review / code quality reviewで以下2点の修正が入った。上記のTask 1〜3のコード例は指示時点のものであり、最終的なコードには以下が追加されている。
+
+- **Task 1**: `inviteMemberAvatarBox`が返すboxに`flex: 0`を追加。横並び(`layout: "horizontal"`)の親boxの中で、`flex`を指定しない子要素はLINEのFlexレンダラーにより既定で`flex: 1`として余白方向に伸縮されるため、`width`/`height`を固定していても円形バッジが楕円に伸びてしまう。これを防ぐために追加した。
+- **Task 3**: `flexAltText(text)`ヘルパーを追加し、両方の`shareTargetPicker`呼び出しで`altText: text`ではなく`altText: flexAltText(text)`を使う。`settlementText(link)`は精算内訳の件数分だけ行が増える（打ち切りなし）ため、LINEのFlexメッセージ`altText`の400文字上限を超える可能性がある。`copyText(text)`のフォールバックは丸めていない`text`のまま。
+
+最終コードは`docs/superpowers/specs/2026-09-06-share-flex-cards-design.md`側にも反映済み。

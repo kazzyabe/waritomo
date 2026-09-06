@@ -20,7 +20,7 @@
 
 - ヘッダー: 背景色`#1878b8`、白文字でグループ名（`state.groupName`）。
 - ボディ:
-  - 既存メンバー一覧（`state.members`）を、既存の`memberTone(member.id)`と同じ色トーンでイニシャルバッジ表示（Flexの`box`に`cornerRadius`を大きく指定して円形に近似）。メンバー数が多い場合は先頭6人＋「ほかN人」のテキストで打ち切る。
+  - 既存メンバー一覧（`state.members`）を、既存の`memberTone(member.id)`と同じ色トーンでイニシャルバッジ表示（Flexの`box`に`cornerRadius`を大きく指定して円形に近似し、`flex: 0`を指定して横並びの親boxに伸縮されないようにする）。メンバー数が多い場合は先頭6人＋「ほかN人」のテキストで打ち切る。
   - 「参加する」という短い案内テキスト。
 - フッター: `uri`アクション付きの`button`。ラベル「参加する」、リンク先は招待permanent link（引数の`link`）。
 
@@ -43,11 +43,13 @@
 liff.shareTargetPicker([
   {
     type: "flex",
-    altText: text, // 既存のinviteText(link) / settlementText(link)の戻り値をそのまま使う
+    altText: flexAltText(text), // 既存のinviteText(link) / settlementText(link)の戻り値をLINEのaltText上限(400文字)に丸めたもの
     contents: buildInviteFlexBubble(link), // or buildSettlementFlexBubble(link)
   },
 ]);
 ```
+
+`flexAltText(text)`は`text.length > 400 ? text.slice(0, 400) : text`という単純な丸め関数。`settlementText(link)`は精算内訳の件数分だけ行が伸びる（打ち切りなし）ため、Flexメッセージの`altText`に使う際にLINEの400文字上限を超える可能性があり、それを防ぐために追加した。クリップボードコピー用のフォールバック（`copyText(text)`）は丸めていない元の`text`をそのまま使う。
 
 新規のサーバー呼び出しやスキーマ変更はなく、データソースは既存のクライアント状態（`state.members` / `state.groupName` / `settlement.items`）のみ。
 
@@ -55,6 +57,7 @@ liff.shareTargetPicker([
 
 - `liff.isApiAvailable("shareTargetPicker")`が偽、または`shareTargetPicker`が例外を投げた場合の挙動は変更しない。既存どおりクリップボードコピー（プレーンテキスト）にフォールバックする。
 - Flex bubble構築関数自体は純粋な同期関数（例外を投げるI/Oを含まない）とし、失敗時のフォールバック処理を新設する必要はない。
+- `altText`はLINEのFlexメッセージ仕様上400文字の上限があるため、`flexAltText(text)`で丸めてから渡す（上記データフロー参照）。
 
 ## 公式アカウントとの関係（確認事項の記録）
 
