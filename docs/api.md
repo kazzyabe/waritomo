@@ -191,11 +191,11 @@ Reads an expense.
 
 ### `PATCH /api/groups/:groupId/expenses/:expenseId`
 
-Updates an expense and writes an audit event.
+Updates an expense.
 
 ### `DELETE /api/groups/:groupId/expenses/:expenseId`
 
-Soft-deletes an expense and writes an audit event.
+Soft-deletes an expense.
 
 ## Settlement
 

@@ -67,8 +67,9 @@ out of logs and avoid sending profile objects from frontend to backend.
 - Group member: read group, add expenses, view settlement.
 - Group owner: edit group settings, remove members.
 
-MVP can allow all claimed members to edit expenses, but every mutation should
-write an audit event.
+MVP allows all claimed members to edit expenses. There is no audit trail; the
+ledger is the shared record, and a changed amount moves a total the whole group
+can see.
 
 ## Settlement Calculation
 

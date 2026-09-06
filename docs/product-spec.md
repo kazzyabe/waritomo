@@ -88,6 +88,8 @@ LINE.
 - A group member can exist before a LINE user claims it.
 - Marking a payback as paid is one-sided. Requiring the receiver to confirm
   would leave the ledger stuck whenever they never open the app.
-- Expense edits are collaborative by default in MVP; audit log makes changes transparent.
+- Expense edits are collaborative by default in MVP. There is no audit log:
+  the ledger is the shared record, and a changed amount shows up in a total
+  the whole group can see.
 - Base currency settlement is required; multi-currency expenses use a stored rate snapshot.
 - The product should work even if target picker is unavailable, via copyable permanent links.

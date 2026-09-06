@@ -88,21 +88,6 @@ create table if not exists settlement_confirmations (
   created_at timestamptz not null default now()
 );
 
--- Written by nothing today. Intended for an audit trail of who changed what;
--- no code path inserts a row yet, so treat it as empty rather than as a
--- history you can read back.
-create table if not exists audit_events (
-  id text primary key,
-  group_id text references groups(id) on delete cascade,
-  actor_user_id text references line_users(id),
-  event_type text not null,
-  target_type text not null,
-  target_id text,
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-
 create index if not exists idx_group_members_group on group_members(group_id);
 create index if not exists idx_expenses_group on expenses(group_id, created_at desc);
 create index if not exists idx_expense_debtors_member on expense_debtors(member_id);
-create index if not exists idx_audit_events_group on audit_events(group_id, created_at desc);
