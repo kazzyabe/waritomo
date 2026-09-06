@@ -3558,6 +3558,100 @@
         showToast("請求メッセージをコピーしました");
       }
 
+      function inviteMemberAvatarBox(member) {
+        return {
+          type: "box",
+          layout: "vertical",
+          width: "28px",
+          height: "28px",
+          flex: 0,
+          cornerRadius: "14px",
+          backgroundColor: colors[memberTone(member.id)],
+          justifyContent: "center",
+          alignItems: "center",
+          contents: [
+            {
+              type: "text",
+              text: initials(member.name),
+              color: "#ffffff",
+              size: "xs",
+              weight: "bold",
+              align: "center",
+              gravity: "center",
+            },
+          ],
+        };
+      }
+
+      function buildInviteFlexBubble(link) {
+        const shown = state.members.slice(0, 6);
+        const overflowCount = state.members.length - shown.length;
+        const avatarRow = {
+          type: "box",
+          layout: "horizontal",
+          spacing: "xs",
+          contents: shown.map(inviteMemberAvatarBox),
+        };
+        const bodyContents = [avatarRow];
+        if (overflowCount > 0) {
+          bodyContents.push({
+            type: "text",
+            text: `ほか${overflowCount}人`,
+            size: "xs",
+            color: "#767676",
+            margin: "sm",
+          });
+        }
+        bodyContents.push({
+          type: "text",
+          text: "リンクを開いて、自分の名前を選んでください。",
+          size: "sm",
+          color: "#3c3c3c",
+          wrap: true,
+          margin: "md",
+        });
+
+        return {
+          type: "bubble",
+          header: {
+            type: "box",
+            layout: "vertical",
+            backgroundColor: "#1878b8",
+            paddingAll: "16px",
+            contents: [
+              {
+                type: "text",
+                text: state.groupName || "ワリトモ",
+                color: "#ffffff",
+                weight: "bold",
+                size: "md",
+                wrap: true,
+              },
+            ],
+          },
+          body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            paddingAll: "16px",
+            contents: bodyContents,
+          },
+          footer: {
+            type: "box",
+            layout: "vertical",
+            paddingAll: "12px",
+            contents: [
+              {
+                type: "button",
+                style: "link",
+                height: "sm",
+                action: { type: "uri", label: "参加する", uri: link },
+              },
+            ],
+          },
+        };
+      }
+
       function inviteText(link) {
         return [
           `${state.groupName}の割り勘をワリトモで始めました。`,
