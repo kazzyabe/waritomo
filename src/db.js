@@ -39,7 +39,17 @@ function databaseConfig() {
 
 export function getPool() {
   if (!isDatabaseEnabled()) return null;
-  if (!pool) pool = new Pool(databaseConfig());
+  if (!pool) {
+    pool = new Pool(databaseConfig());
+    // A pooled connection sitting idle can fail on its own — Cloud SQL
+    // restarting, a maintenance window, scripts/gcp-db-stop.sh. Nobody is
+    // awaiting it at that moment, and an 'error' event with no listener is an
+    // uncaught exception, which takes the whole process down. The pool opens a
+    // replacement by itself, so there is nothing to do but say what happened.
+    pool.on("error", (error) => {
+      console.error("idle database client error", error);
+    });
+  }
   return pool;
 }
 
