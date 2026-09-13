@@ -3,3 +3,5 @@
 User-agent: *
 Disallow: /groups/
 Disallow: /api/
+
+Sitemap: https://waritomo-a5cm7qenuq-an.a.run.app/sitemap.xml
