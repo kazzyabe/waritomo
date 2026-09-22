@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640" role="img" aria-label="ワリトモのプロフィール画像">
+  <defs>
+    <filter id="soft-shadow" x="-30%" y="-25%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#1d2733" flood-opacity="0.16"/>
+    </filter>
+    <filter id="paper-shadow" x="-20%" y="-15%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#263142" flood-opacity="0.13"/>
+    </filter>
+    <path id="receipt-small" d="M20 2H164C174 2 182 10 182 20V238L164 224L146 238L128 224L110 238L92 224L74 238L56 224L38 238L20 224L8 234V20C8 10 10 2 20 2Z"/>
+    <path id="receipt-main" d="M24 2H198C210 2 218 11 218 24V304L196 288L174 304L152 288L130 304L108 288L86 304L64 288L42 304L20 288L6 300V24C6 11 12 2 24 2Z"/>
+  </defs>
+
+  <rect width="640" height="640" fill="#fbfaf7"/>
+  <circle cx="320" cy="318" r="238" fill="#eef6f0"/>
+  <ellipse cx="320" cy="496" rx="180" ry="34" fill="#c8d0d8" opacity="0.25"/>
+
+  <g filter="url(#soft-shadow)">
+    <g transform="translate(104 214) rotate(-13 91 120)">
+      <use href="#receipt-small" fill="#ffffff" stroke="#dfe5ea" stroke-width="6"/>
+      <circle cx="95" cy="42" r="15" fill="#4fac73"/>
+      <text x="45" y="115" fill="#253243" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">¥</text>
+      <text x="76" y="115" fill="#253243" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600">00</text>
+      <rect x="38" y="144" width="105" height="9" rx="4.5" fill="#d9dfe5"/>
+      <rect x="38" y="170" width="90" height="9" rx="4.5" fill="#e3e7eb"/>
+      <rect x="38" y="196" width="118" height="9" rx="4.5" fill="#edf0f2"/>
+    </g>
+
+    <g transform="translate(354 214) rotate(13 91 120)">
+      <use href="#receipt-small" fill="#ffffff" stroke="#dfe5ea" stroke-width="6"/>
+      <circle cx="95" cy="42" r="15" fill="#f46d5f"/>
+      <text x="45" y="115" fill="#253243" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">¥</text>
+      <text x="76" y="115" fill="#253243" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="600">00</text>
+      <rect x="38" y="144" width="105" height="9" rx="4.5" fill="#d9dfe5"/>
+      <rect x="38" y="170" width="90" height="9" rx="4.5" fill="#e3e7eb"/>
+      <rect x="38" y="196" width="118" height="9" rx="4.5" fill="#edf0f2"/>
+    </g>
+  </g>
+
+  <g transform="translate(211 149)" filter="url(#paper-shadow)">
+    <use href="#receipt-main" fill="#ffffff" stroke="#d9e0e6" stroke-width="7"/>
+    <circle cx="112" cy="48" r="17" fill="#243247"/>
+    <text x="61" y="146" fill="#263142" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="700">¥</text>
+    <text x="102" y="146" fill="#263142" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="600">OO</text>
+    <rect x="46" y="182" width="132" height="11" rx="5.5" fill="#d6dde3"/>
+    <rect x="46" y="215" width="108" height="11" rx="5.5" fill="#e3e7eb"/>
+    <rect x="46" y="248" width="143" height="11" rx="5.5" fill="#eef1f3"/>
+  </g>
+</svg>
