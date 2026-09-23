@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="2500" height="843" viewBox="0 0 2500 843">
+  <rect width="2500" height="843" fill="#ffffff"/>
+
+  <!-- Primary action -->
+  <rect width="834" height="843" fill="#06c755"/>
+  <g transform="translate(72 205)">
+    <g transform="rotate(-8 145 190)">
+      <rect x="28" y="72" width="238" height="304" rx="28" fill="#ffffff" opacity="0.96"/>
+      <circle cx="103" cy="125" r="15" fill="#4fb05f"/>
+      <path d="M64 171h166M64 226h166M64 283h128" stroke="#dfe5e1" stroke-width="11" stroke-linecap="round"/>
+      <text x="64" y="260" fill="#4b5359" font-family="sans-serif" font-size="48" font-weight="800">¥○○</text>
+    </g>
+    <g transform="rotate(8 283 190)">
+      <rect x="164" y="72" width="238" height="304" rx="28" fill="#ffffff" opacity="0.96"/>
+      <circle cx="327" cy="125" r="15" fill="#f06454"/>
+      <path d="M200 171h166M200 226h166M200 283h128" stroke="#dfe5e1" stroke-width="11" stroke-linecap="round"/>
+      <text x="200" y="260" fill="#4b5359" font-family="sans-serif" font-size="48" font-weight="800">¥○○</text>
+    </g>
+    <g>
+      <rect x="104" y="48" width="238" height="348" rx="30" fill="#ffffff"/>
+      <circle cx="223" cy="105" r="17" fill="#315c83"/>
+      <path d="M145 158h156M145 285h156M145 331h102" stroke="#dfe5e1" stroke-width="11" stroke-linecap="round"/>
+      <text x="145" y="246" fill="#40494f" font-family="sans-serif" font-size="55" font-weight="800">¥○○</text>
+      <path d="M104 396l20-16 20 16 20-16 20 16 20-16 20 16 20-16 20 16 20-16 20 16 20-16 18 16" fill="#ffffff"/>
+    </g>
+  </g>
+  <text x="474" y="330" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="48" font-weight="700">ワリトモ</text>
+  <text x="474" y="414" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">割り勘を</text>
+  <text x="474" y="500" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">はじめる</text>
+  <path d="M474 577h150m-48-48 48 48-48 48" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Secondary actions -->
+  <line x1="834" y1="0" x2="834" y2="843" stroke="#dfe8e3" stroke-width="4"/>
+  <line x1="1667" y1="0" x2="1667" y2="843" stroke="#dfe8e3" stroke-width="4"/>
+
+  <!-- Guide icon -->
+  <circle cx="1250" cy="298" r="118" fill="#effaf3" stroke="#bfeacf" stroke-width="6"/>
+  <circle cx="1250" cy="298" r="62" fill="none" stroke="#07863e" stroke-width="18"/>
+  <path d="M1217 280c5-31 24-48 52-48 34 0 56 20 56 49 0 23-12 36-37 50-22 12-29 22-29 45" fill="none" stroke="#07863e" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="1259" cy="409" r="11" fill="#07863e"/>
+  <text x="1250" y="580" text-anchor="middle" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="72" font-weight="800">使い方</text>
+  <text x="1250" y="653" text-anchor="middle" fill="#657084" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="38" font-weight="600">かんたんガイド</text>
+
+  <!-- FAQ icon -->
+  <rect x="1978" y="192" width="210" height="176" rx="42" fill="#eff6fb" stroke="#cde3f2" stroke-width="6"/>
+  <path d="M2028 368l-20 68 74-68" fill="#eff6fb" stroke="#cde3f2" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M2036 256h96M2036 304h68" fill="none" stroke="#1878b8" stroke-width="18" stroke-linecap="round"/>
+  <text x="2084" y="580" text-anchor="middle" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="72" font-weight="800">よくある質問</text>
+  <text x="2084" y="653" text-anchor="middle" fill="#657084" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="38" font-weight="600">困ったときはこちら</text>
+</svg>
