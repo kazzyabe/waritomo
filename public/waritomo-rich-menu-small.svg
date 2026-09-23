@@ -3,7 +3,7 @@
 
   <!-- Primary action -->
   <rect width="834" height="843" fill="#06c755"/>
-  <g transform="translate(72 205)">
+  <g transform="translate(38 250) scale(0.78)">
     <g transform="rotate(-8 145 190)">
       <rect x="28" y="72" width="238" height="304" rx="28" fill="#ffffff" opacity="0.96"/>
       <circle cx="103" cy="125" r="15" fill="#4fb05f"/>
@@ -24,10 +24,10 @@
       <path d="M104 396l20-16 20 16 20-16 20 16 20-16 20 16 20-16 20 16 20-16 20 16 20-16 18 16" fill="#ffffff"/>
     </g>
   </g>
-  <text x="474" y="330" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="48" font-weight="700">ワリトモ</text>
-  <text x="474" y="414" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">割り勘を</text>
-  <text x="474" y="500" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">はじめる</text>
-  <path d="M474 577h150m-48-48 48 48-48 48" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="392" y="330" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="48" font-weight="700">ワリトモ</text>
+  <text x="392" y="414" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">割り勘を</text>
+  <text x="392" y="500" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif" font-size="68" font-weight="800">はじめる</text>
+  <path d="M392 577h150m-48-48 48 48-48 48" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
 
   <!-- Secondary actions -->
   <line x1="834" y1="0" x2="834" y2="843" stroke="#dfe8e3" stroke-width="4"/>
