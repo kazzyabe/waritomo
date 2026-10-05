@@ -2,13 +2,13 @@
   <rect width="1200" height="800" fill="#f6f8f4"/>
   <rect x="0" y="0" width="28" height="800" fill="#06c755"/>
   <circle cx="100" cy="93" r="37" fill="#06c755"/>
-  <text x="158" y="110" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="47" font-weight="700">ワリトモ</text>
-  <text x="72" y="275" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="72" font-weight="800">誰が誰に払う？を</text>
-  <text x="72" y="366" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="72" font-weight="800">かんたんに。</text>
-  <text x="76" y="460" fill="#667085" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="32" font-weight="500">面倒なグループ会計を自動で整理</text>
+  <text x="158" y="110" fill="#20242c" font-family="Rounded Mplus 1c, sans-serif" font-size="47" font-weight="700">ワリトモ</text>
+  <text x="72" y="275" fill="#20242c" font-family="Rounded Mplus 1c, sans-serif" font-size="72" font-weight="800">誰が誰に払う？を</text>
+  <text x="72" y="366" fill="#20242c" font-family="Rounded Mplus 1c, sans-serif" font-size="72" font-weight="800">かんたんに。</text>
+  <text x="76" y="460" fill="#667085" font-family="Rounded Mplus 1c, sans-serif" font-size="32" font-weight="500">面倒なグループ会計を自動で整理</text>
   <rect x="72" y="522" width="384" height="76" rx="38" fill="#06c755"/>
-  <text x="264" y="574" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="34" font-weight="700">LINEでかんたん精算</text>
-  <text x="72" y="706" fill="#057f3a" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="30" font-weight="700">アプリのダウンロード不要</text>
+  <text x="264" y="574" text-anchor="middle" fill="#ffffff" font-family="Rounded Mplus 1c, sans-serif" font-size="34" font-weight="700">LINEでかんたん精算</text>
+  <text x="72" y="706" fill="#057f3a" font-family="Rounded Mplus 1c, sans-serif" font-size="30" font-weight="700">アプリのダウンロード不要</text>
   <rect x="766" y="52" width="374" height="712" rx="52" fill="#ffffff" stroke="#dfe8df" stroke-width="12"/>
   <rect x="892" y="69" width="122" height="22" rx="11" fill="#20242c"/>
 </svg>
