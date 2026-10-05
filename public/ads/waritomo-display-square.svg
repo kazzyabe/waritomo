@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200" viewBox="0 0 1200 1200">
+  <rect width="1200" height="1200" fill="#f6f8f4"/>
+  <circle cx="105" cy="105" r="42" fill="#06c755"/>
+  <text x="171" y="126" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="54" font-weight="700">ワリトモ</text>
+  <text x="82" y="332" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="64" font-weight="800">飲み会の割り勘</text>
+  <text x="82" y="420" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="64" font-weight="800">もっと簡単に。</text>
+  <rect x="82" y="493" width="390" height="74" rx="37" fill="#06c755"/>
+  <text x="277" y="544" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="34" font-weight="700">LINEでかんたん精算</text>
+  <text x="82" y="648" fill="#667085" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="34" font-weight="500">旅行や飲み会の支払いを記録</text>
+  <text x="82" y="700" fill="#667085" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="34" font-weight="500">誰が誰に払うか自動で計算</text>
+  <rect x="690" y="164" width="438" height="992" rx="66" fill="#ffffff" stroke="#dfe8df" stroke-width="14"/>
+  <rect x="841" y="183" width="136" height="25" rx="13" fill="#20242c"/>
+  <path d="M82 1067h380" stroke="#b9e6c6" stroke-width="5"/>
+  <text x="82" y="1122" fill="#057f3a" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="34" font-weight="700">アプリのダウンロード不要</text>
+</svg>

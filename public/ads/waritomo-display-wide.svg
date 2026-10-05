@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1256" viewBox="0 0 2400 1256">
+  <rect width="2400" height="1256" fill="#f6f8f4"/>
+  <rect x="0" y="0" width="48" height="1256" fill="#06c755"/>
+  <circle cx="190" cy="154" r="54" fill="#06c755"/>
+  <text x="276" y="178" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="68" font-weight="700">ワリトモ</text>
+  <text x="132" y="430" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="118" font-weight="800">旅行・飲み会の立替を</text>
+  <text x="132" y="577" fill="#20242c" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="118" font-weight="800">ワリトモで。</text>
+  <text x="140" y="704" fill="#667085" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="49" font-weight="500">支払いを記録するだけ。精算額を自動で計算。</text>
+  <rect x="132" y="792" width="540" height="102" rx="51" fill="#06c755"/>
+  <text x="402" y="862" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="48" font-weight="700">LINEですぐ使える</text>
+  <text x="132" y="1060" fill="#057f3a" font-family="-apple-system, BlinkMacSystemFont, 'Hiragino Sans GB', sans-serif" font-size="44" font-weight="700">ダウンロード不要の割り勘サービス</text>
+  <rect x="1755" y="86" width="556" height="1084" rx="76" fill="#ffffff" stroke="#dfe8df" stroke-width="16"/>
+  <rect x="1961" y="108" width="144" height="26" rx="13" fill="#20242c"/>
+  <circle cx="1580" cy="200" r="210" fill="#eaf8ef"/>
+  <circle cx="1560" cy="1060" r="310" fill="#eef6fb"/>
+</svg>
