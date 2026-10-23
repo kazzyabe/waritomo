@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { connect } from "node:net";
 import { after, before, test } from "node:test";
 
@@ -30,6 +30,22 @@ after(async () => {
 
 function request(path, options = {}) {
   return fetch(`${origin}${path}`, options);
+}
+
+// fetch controls the Host header itself. Use the HTTP client to exercise the
+// two real Cloud Run hostnames while still connecting to the local server.
+function requestOnHost(path, host, method = "GET") {
+  return new Promise((resolve, reject) => {
+    const outgoing = httpRequest(`${origin}${path}`, { method, headers: { host } }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("error", reject);
+      response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body }));
+    });
+    outgoing.on("error", reject);
+    outgoing.end();
+  });
 }
 
 // fetch normalises "//" and absolute-form targets before they reach the wire,
@@ -84,6 +100,62 @@ test("serves robots.txt as text and keeps groups out of the index", async () => 
   const body = await response.text();
   assert.match(body, /^User-agent: \*$/m);
   assert.match(body, /^Disallow: \/groups\/$/m);
+});
+
+test("sitemap pages serve one matching canonical URL on the verified search origin", async () => {
+  const sitemap = await request("/sitemap.xml");
+  assert.equal(sitemap.status, 200);
+  const urls = [...(await sitemap.text()).matchAll(/<loc>(.*?)<\/loc>/g)].map((match) => match[1]);
+  assert.equal(urls.length, 6);
+  assert.ok(urls.includes("https://waritomo-a5cm7qenuq-an.a.run.app/service-overview"));
+
+  const robots = await (await request("/robots.txt")).text();
+  assert.match(robots, /^Sitemap: https:\/\/waritomo-a5cm7qenuq-an\.a\.run\.app\/sitemap\.xml$/m);
+
+  for (const canonical of urls) {
+    const url = new URL(canonical);
+    assert.equal(url.origin, "https://waritomo-a5cm7qenuq-an.a.run.app");
+    const response = await requestOnHost(url.pathname, url.host);
+    assert.equal(response.status, 200, canonical);
+    assert.match(response.headers["content-type"], /text\/html/);
+    const html = response.body;
+    const links = [...html.matchAll(/<link\s+rel="canonical"\s+href="([^"]+)"\s*\/>/g)];
+    assert.deepEqual(links.map((match) => match[1]), [canonical]);
+    assert.doesNotMatch(html, /<meta\s+name="robots"[^>]*noindex/i);
+  }
+});
+
+test("informational pages redirect alternate hosts and URL variants, preserving campaign parameters", async () => {
+  for (const page of ["service-overview", "faq", "privacy", "terms", "support"]) {
+    for (const [host, suffix] of [
+      ["waritomo-46929413374.asia-northeast1.run.app", ""],
+      ["waritomo-46929413374.asia-northeast1.run.app", ".html/"],
+      ["waritomo-a5cm7qenuq-an.a.run.app", ".html"],
+      ["waritomo-a5cm7qenuq-an.a.run.app", "/"],
+    ]) {
+      const response = await requestOnHost(`/${page}${suffix}?utm_source=line&utm_campaign=seo%20check`, host);
+      assert.equal(response.status, 308, `${host}/${page}${suffix}`);
+      assert.equal(response.headers.location,
+        `https://waritomo-a5cm7qenuq-an.a.run.app/${page}?utm_source=line&utm_campaign=seo%20check`);
+    }
+  }
+
+  const head = await requestOnHost("/service-overview", "waritomo-46929413374.asia-northeast1.run.app", "HEAD");
+  assert.equal(head.status, 308);
+  assert.equal(head.body, "");
+});
+
+test("search redirects leave the LIFF app, group links, API and local development on their existing origin", async () => {
+  for (const path of ["/", "/index.html", "/groups/grp_1", "/groups/grp_1/invite?token=test", "/api/config"]) {
+    const response = await requestOnHost(path, "waritomo-46929413374.asia-northeast1.run.app");
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.location, undefined);
+  }
+
+  const localPage = await request("/service-overview", { redirect: "manual" });
+  assert.equal(localPage.status, 200);
+  assert.equal(localPage.headers.get("location"), null);
+  await localPage.text();
 });
 
 test("a missing asset is a 404, not the app shell", async () => {

@@ -65,6 +65,25 @@ The permanent link should be:
 https://miniapp.line.me/YOUR_LIFF_ID/groups/demo/invite
 ```
 
+## Search URLs
+
+The public search origin is `https://waritomo-a5cm7qenuq-an.a.run.app`,
+which is already verified in Search Console. HTML canonical links, `robots.txt`
+and `sitemap.xml` all use this origin. `/service-overview` is the landing page
+for public service information and advertising.
+
+Cloud Run also serves `https://waritomo-46929413374.asia-northeast1.run.app`.
+Requests to informational pages on that hostname redirect permanently (308)
+to the search origin, preserving query parameters for campaign attribution.
+The `.html` and trailing-slash variants of those pages redirect as well.
+
+`PUBLIC_BASE_URL` continues to identify the LINE mini app endpoint. The app
+root, group/invite routes and API routes are not redirected between hosts,
+so LIFF initialization and existing sessions keep their current origin.
+If the search origin changes, update the redirect configuration in
+`src/server.js`, all HTML canonical links, `robots.txt`, `sitemap.xml` and
+Search Console together.
+
 ## LINE Developers
 
 Set the LINE mini app endpoint URL to:

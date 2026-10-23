@@ -38,6 +38,15 @@ import { SettlementInputError, calculateSettlement } from "./settlement.js";
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
 const publicDir = join(rootDir, "public");
 
+// Search Console, sitemap.xml and the HTML canonical links use this origin.
+// PUBLIC_BASE_URL is the LIFF endpoint and can use Cloud Run's other hostname.
+const searchHost = "waritomo-a5cm7qenuq-an.a.run.app";
+const searchOrigin = `https://${searchHost}`;
+const publicSiteHosts = new Set([
+  searchHost,
+  "waritomo-46929413374.asia-northeast1.run.app",
+]);
+
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -340,6 +349,28 @@ function sendFile(response, filePath, headers) {
   pipeline(createReadStream(filePath), response, (error) => {
     if (error) console.error("static file stream failed", filePath, error);
   });
+}
+
+function redirectPublicPage(request, response, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+
+  // Only informational pages move between hosts. Redirecting the app shell or
+  // group links would change the origin used by LIFF and its session cookies.
+  const match = url.pathname.match(/^\/(service-overview|faq|privacy|terms|support)(?:\.html)?\/?$/);
+  if (!match) return false;
+
+  const host = (request.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+  if (!publicSiteHosts.has(host)) return false;
+
+  const canonicalPath = `/${match[1]}`;
+  if (host === searchHost && url.pathname === canonicalPath) return false;
+
+  response.writeHead(308, {
+    location: `${searchOrigin}${canonicalPath}${url.search}`,
+    "cache-control": "public, max-age=3600",
+  });
+  response.end();
+  return true;
 }
 
 function serveStatic(response, url) {
@@ -688,6 +719,8 @@ export async function handleRequest(request, response) {
       await handleApi(request, response, url);
       return;
     }
+
+    if (redirectPublicPage(request, response, url)) return;
 
     serveStatic(response, url);
   } catch (error) {
