@@ -47,6 +47,7 @@ test("startup reveals the error state after a rejected initial request", async (
   const elements = startupElements();
   const error = new Error("offline");
   let displayedError;
+  let readyCalls = 0;
   await runStartup({
     ...elements,
     initialize: async () => { throw error; },
@@ -54,11 +55,14 @@ test("startup reveals the error state after a rejected initial request", async (
       assert.equal(elements.app.hidden, true);
       displayedError = caught;
     },
+    afterReady: () => { readyCalls += 1; },
+    waitForPaint: assert.fail,
   });
   assert.equal(displayedError, error);
   assert.equal(elements.loadingScreen.hidden, true);
   assert.equal(elements.app.hidden, false);
   assert.equal(elements.app.inert, false);
+  assert.equal(readyCalls, 0);
 });
 
 test("an early initialization return also releases the loading screen", async () => {
@@ -101,28 +105,77 @@ test("a friendship lookup failure still allows the native confirmation", async (
   assert.equal(requested, true);
 });
 
-test("declining or failing friendship never fails startup", async () => {
-  await assert.doesNotReject(requestStartupFriendship(lineClient({
-    requestFriendship: async () => { throw new Error("FORBIDDEN"); },
-  })));
+test("unsupported and failed native confirmations can show a fallback", async (t) => {
+  const warning = t.mock.method(console, "warn", () => {});
+  assert.equal(await requestStartupFriendship(lineClient({ isApiAvailable: () => false })), "unsupported");
+  assert.equal(await requestStartupFriendship(lineClient({ requestFriendship: undefined })), "unsupported");
+  assert.equal(await requestStartupFriendship(lineClient({
+    requestFriendship: async () => { throw { code: "FORBIDDEN" }; },
+  })), "failed");
+  assert.deepEqual(warning.mock.calls[0].arguments, ["LINE friendship confirmation unavailable", "FORBIDDEN"]);
+  assert.equal(await requestStartupFriendship(lineClient()), "requested");
 });
 
-test("a pending friend confirmation does not delay data or keep the loader open", async () => {
+test("known friends do not see a fallback even on unsupported LINE versions", async () => {
+  assert.equal(await requestStartupFriendship(lineClient({
+    getFriendship: async () => ({ friendFlag: true }),
+    isApiAvailable: () => false,
+  })), "already-friend");
+});
+
+test("friend confirmation waits for data and the revealed screen to paint", async () => {
   const elements = startupElements();
+  const data = deferred();
+  const paint = deferred();
   const confirmation = deferred();
+  const confirmationStarted = deferred();
   let friendship;
-  let dataLoaded = false;
-  await runStartup({
+  let paintRequested = false;
+  let requests = 0;
+  const startup = runStartup({
     ...elements,
-    initialize: async () => {
-      friendship = requestStartupFriendship(lineClient({ requestFriendship: () => confirmation.promise }));
-      dataLoaded = true;
+    initialize: () => data.promise,
+    waitForPaint: () => {
+      assert.equal(elements.loadingScreen.hidden, true);
+      assert.equal(elements.app.hidden, false);
+      paintRequested = true;
+      return paint.promise;
+    },
+    afterReady: () => {
+      friendship = requestStartupFriendship(lineClient({ requestFriendship: () => { requests += 1; confirmationStarted.resolve(); return confirmation.promise; } }));
+      return friendship;
     },
     onError: assert.fail,
   });
-  assert.equal(dataLoaded, true);
+  assert.equal(paintRequested, false);
+  assert.equal(requests, 0);
+  data.resolve();
+  await Promise.resolve();
+  assert.equal(paintRequested, true);
+  assert.equal(requests, 0);
+  paint.resolve();
+  await startup;
+  await confirmationStarted.promise;
+  assert.equal(requests, 1);
   assert.equal(elements.loadingScreen.hidden, true);
   assert.equal(elements.app.hidden, false);
   confirmation.resolve();
   await friendship;
+});
+
+test("even instant data loading schedules friendship after the screen paint", async () => {
+  const events = [];
+  const elements = startupElements();
+  await runStartup({
+    ...elements,
+    initialize: async () => { events.push("data"); },
+    waitForPaint: async () => {
+      assert.equal(elements.app.hidden, false);
+      assert.equal(elements.loadingScreen.hidden, true);
+      events.push("paint");
+    },
+    afterReady: () => { events.push("friendship"); },
+    onError: assert.fail,
+  });
+  assert.deepEqual(events, ["data", "paint", "friendship"]);
 });

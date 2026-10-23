@@ -43,14 +43,16 @@ launch.
 
 ## Startup And Friend Addition
 
-- Show the startup loading screen before downloading the LIFF SDK. Reveal the
+- Show the startup loading screen while loading the LIFF SDK and data. Reveal the
   app after the initial data request completes, including sign-in/storage errors.
-- After LINE authentication, request friendship once during initial data loading
+- After LINE authentication and initial data loading, reveal and paint the app,
+  then request friendship once
   with `liff.requestFriendship()` and no arguments. This uses LINE's default
   confirmation and the channel's linked default official account; it requests
   no additional scopes.
-- Skip existing friends, external browsers, and unsupported LINE versions.
-  Declining or failing this optional prompt does not block initialization.
+- Skip existing friends and external browsers. If the native confirmation is
+  unsupported or fails, show a small optional dialog linking to the official
+  account (`@660umkvz`). Declining either invitation does not block the app.
 - The LINE mini app channel must have its default official account linked in
   LINE Developers. The API requires a Full-size LIFF browser. Verify the native
   confirmation on a supported LINE device; a desktop mock cannot verify it.

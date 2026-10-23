@@ -132,6 +132,46 @@
         border-radius: 50%;
       }
 
+      .friendship-dialog {
+        width: min(340px, calc(100% - 40px));
+        padding: 28px 24px 20px;
+        border: 0;
+        border-radius: 24px;
+        background: var(--panel);
+        color: var(--ink);
+        text-align: center;
+        box-shadow: 0 16px 48px #0002;
+      }
+
+      .friendship-dialog::backdrop {
+        background: #0005;
+      }
+
+      .friendship-dialog img {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+      }
+
+      .friendship-dialog h2 {
+        margin: 16px 0 12px;
+        font-size: 19px;
+        line-height: 1.6;
+      }
+
+      .friendship-dialog p {
+        margin: 0 0 24px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .friendship-dialog .button {
+        display: flex;
+        width: 100%;
+        margin-top: 12px;
+        text-decoration: none;
+      }
+
       body.interstitial-open {
         overflow: hidden;
       }
@@ -1794,6 +1834,14 @@
       </div>
     </div>
 
+    <dialog id="friendship-dialog" class="friendship-dialog" aria-labelledby="friendship-title" aria-describedby="friendship-description">
+      <img src="/waritomo-icon-130.png" width="64" height="64" alt="" />
+      <h2 id="friendship-title">ワリトモを<br />友だち追加しますか？</h2>
+      <p id="friendship-description">追加しなくてもご利用いただけます。</p>
+      <a id="friendship-add" class="button" href="https://line.me/R/ti/p/%40660umkvz" target="_blank" rel="noopener">友だち追加</a>
+      <button id="friendship-later" class="button subtle" type="button">今はしない</button>
+    </dialog>
+
     <div id="toast" class="toast" role="status" hidden></div>
     <div id="expense-interstitial-ad" class="interstitial-ad" role="dialog" aria-modal="true" aria-label="広告" hidden>
       <div class="interstitial-shell">
@@ -1809,7 +1857,7 @@
 
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <script type="module">
-      import { runStartup, requestStartupFriendship } from "/startup.js";
+      import { runStartup, requestStartupFriendship } from "/startup.js?v=2";
 
       // Mirrors --tone-0..5 in the stylesheet. Sent to the API so stored rows
       // stay meaningful; the UI never reads it back (see memberTone).
@@ -4210,9 +4258,6 @@
             return;
           }
 
-          // Start LINE's optional confirmation while the initial data loads.
-          // Declining or leaving it open must not hold up initialization.
-          void requestStartupFriendship(liff);
           render();
           await loadRemoteState().catch(() => {
             markAppUnavailable("storage");
@@ -4468,6 +4513,9 @@
 
       render();
       refreshSettlement();
+      const friendshipDialog = document.getElementById("friendship-dialog");
+      document.getElementById("friendship-later").addEventListener("click", () => friendshipDialog.close());
+      document.getElementById("friendship-add").addEventListener("click", () => friendshipDialog.close());
       void runStartup({
         app: document.getElementById("app-shell"),
         loadingScreen: document.getElementById("startup-loading"),
@@ -4477,6 +4525,13 @@
           cloudStorageNotice = unavailableMessage();
           state = emptyRemoteState([]);
           render();
+        },
+        afterReady: () => {
+          if (!liffInitialized || !currentUserAuthenticated || appUnavailable) return;
+          void requestStartupFriendship(window.liff).then((result) => {
+            trackEvent("friendship_prompt", { result });
+            if (result === "unsupported" || result === "failed") friendshipDialog.showModal();
+          });
         },
       });
     </script>
