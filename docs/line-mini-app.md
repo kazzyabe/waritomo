@@ -50,9 +50,9 @@ launch.
   with `liff.requestFriendship()` and no arguments. This uses LINE's default
   confirmation and the channel's linked default official account; it requests
   no additional scopes.
-- Skip existing friends and external browsers. If the native confirmation is
-  unsupported or fails, show a small optional dialog linking to the official
-  account (`@660umkvz`). Declining either invitation does not block the app.
+- Use LINE's native friend-add / unblock modal exclusively. Skip existing
+  friends and external browsers. If the native modal is unsupported or fails,
+  record the result and keep the app usable. Declining does not block the app.
 - The LINE mini app channel must have its default official account linked in
   LINE Developers. The API requires a Full-size LIFF browser. Verify the native
   confirmation on a supported LINE device; a desktop mock cannot verify it.

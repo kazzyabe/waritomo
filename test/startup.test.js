@@ -105,7 +105,7 @@ test("a friendship lookup failure still allows the native confirmation", async (
   assert.equal(requested, true);
 });
 
-test("unsupported and failed native confirmations can show a fallback", async (t) => {
+test("unsupported and failed native confirmations return diagnostic results", async (t) => {
   const warning = t.mock.method(console, "warn", () => {});
   assert.equal(await requestStartupFriendship(lineClient({ isApiAvailable: () => false })), "unsupported");
   assert.equal(await requestStartupFriendship(lineClient({ requestFriendship: undefined })), "unsupported");
@@ -116,7 +116,7 @@ test("unsupported and failed native confirmations can show a fallback", async (t
   assert.equal(await requestStartupFriendship(lineClient()), "requested");
 });
 
-test("known friends do not see a fallback even on unsupported LINE versions", async () => {
+test("known friends are skipped even on unsupported LINE versions", async () => {
   assert.equal(await requestStartupFriendship(lineClient({
     getFriendship: async () => ({ friendFlag: true }),
     isApiAvailable: () => false,
