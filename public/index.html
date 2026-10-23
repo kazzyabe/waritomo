@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="google-site-verification" content="Mud37WLJsKKyk_c_6kvdqy-5IGRsNORskiQ1IVzxYxo" />
     <title>ワリトモ</title>
-    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <link rel="preload" as="script" href="https://static.line-scdn.net/liff/edge/2/sdk.js" />
     <script async src="https://yads.c.yimg.jp/js/yads-async.js"></script>
     <style>
       :root {
@@ -90,6 +90,46 @@
         min-height: 100%;
         margin: 0;
         background: #ffffff;
+      }
+
+      .startup-loading {
+        display: flex;
+        min-height: 100vh;
+        min-height: 100dvh;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 32px 20px;
+        text-align: center;
+      }
+
+      .startup-loading img {
+        width: 80px;
+        height: 80px;
+        border-radius: 22px;
+      }
+
+      .startup-loading h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+
+      .startup-loading p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .startup-spinner {
+        width: 28px;
+        height: 28px;
+        margin-top: 8px;
+        border: 3px solid var(--line-border);
+        border-top-color: var(--line-dark);
+        border-radius: 50%;
       }
 
       body.interstitial-open {
@@ -1411,6 +1451,14 @@
       }
 
       @media (prefers-reduced-motion: no-preference) {
+        .startup-spinner {
+          animation: startup-spin 0.8s linear infinite;
+        }
+
+        @keyframes startup-spin {
+          to { transform: rotate(360deg); }
+        }
+
         .button,
         .icon-button,
         .mini-action {
@@ -1469,7 +1517,13 @@
     </style>
   </head>
   <body>
-    <main class="app-shell">
+    <div id="startup-loading" class="startup-loading" role="status" aria-live="polite">
+      <img src="/waritomo-icon-130.png" width="80" height="80" alt="" />
+      <h1>ワリトモ</h1>
+      <span class="startup-spinner" aria-hidden="true"></span>
+      <p>データを読み込んでいます…</p>
+    </div>
+    <main id="app-shell" class="app-shell" aria-busy="true" hidden inert>
       <header class="topbar">
         <button id="home-button" class="icon-button" type="button" aria-label="ホーム" hidden>
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -1753,7 +1807,10 @@
       </div>
     </div>
 
-    <script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script type="module">
+      import { runStartup, requestStartupFriendship } from "/startup.js";
+
       // Mirrors --tone-0..5 in the stylesheet. Sent to the API so stored rows
       // stay meaningful; the UI never reads it back (see memberTone).
       const colors = ["#157f35", "#2171b8", "#147b74", "#2b63d4", "#1a7d58", "#167795"];
@@ -4153,6 +4210,9 @@
             return;
           }
 
+          // Start LINE's optional confirmation while the initial data loads.
+          // Declining or leaving it open must not hold up initialization.
+          void requestStartupFriendship(liff);
           render();
           await loadRemoteState().catch(() => {
             markAppUnavailable("storage");
@@ -4408,11 +4468,16 @@
 
       render();
       refreshSettlement();
-      initializeMiniApp().catch(() => {
-        markAppUnavailable("storage");
-        cloudStorageNotice = unavailableMessage();
-        state = emptyRemoteState([]);
-        render();
+      void runStartup({
+        app: document.getElementById("app-shell"),
+        loadingScreen: document.getElementById("startup-loading"),
+        initialize: initializeMiniApp,
+        onError: () => {
+          markAppUnavailable("storage");
+          cloudStorageNotice = unavailableMessage();
+          state = emptyRemoteState([]);
+          render();
+        },
       });
     </script>
   </body>

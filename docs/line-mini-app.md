@@ -41,6 +41,22 @@ Recommended MVP scopes:
 Request additional permissions at the moment of use, not immediately on app
 launch.
 
+## Startup And Friend Addition
+
+- Show the startup loading screen before downloading the LIFF SDK. Reveal the
+  app after the initial data request completes, including sign-in/storage errors.
+- After LINE authentication, request friendship once during initial data loading
+  with `liff.requestFriendship()` and no arguments. This uses LINE's default
+  confirmation and the channel's linked default official account; it requests
+  no additional scopes.
+- Skip existing friends, external browsers, and unsupported LINE versions.
+  Declining or failing this optional prompt does not block initialization.
+- The LINE mini app channel must have its default official account linked in
+  LINE Developers. The API requires a Full-size LIFF browser. Verify the native
+  confirmation on a supported LINE device; a desktop mock cannot verify it.
+
+Reference: [LIFF requestFriendship](https://developers.line.biz/ja/reference/liff/#request-friendship).
+
 ## Sharing
 
 Use mini app permanent links for group invite and settlement links.
