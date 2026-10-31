@@ -354,12 +354,25 @@ function sendFile(response, filePath, headers) {
 function redirectPublicPage(request, response, url) {
   if (request.method !== "GET" && request.method !== "HEAD") return false;
 
-  // Only informational pages move between hosts. Redirecting the app shell or
-  // group links would change the origin used by LIFF and its session cookies.
+  const host = (request.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
+
+  // The public entry URL opens LINE's own mobile/QR guidance. The other Cloud
+  // Run hostname is the LIFF endpoint: its app shell must never redirect back
+  // to the MINI App URL or the launch would loop.
+  if (host === searchHost && (url.pathname === "/" || url.pathname === "/index.html")) {
+    response.writeHead(302, {
+      location: "https://miniapp.line.me/2010522907-PfrCcL2F",
+      "cache-control": "no-store",
+    });
+    response.end();
+    return true;
+  }
+
+  // Informational pages converge on the search origin. Group/invite links
+  // retain their original host and session cookies.
   const match = url.pathname.match(/^\/(service-overview|faq|privacy|terms|support)(?:\.html)?\/?$/);
   if (!match) return false;
 
-  const host = (request.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
   if (!publicSiteHosts.has(host)) return false;
 
   const canonicalPath = `/${match[1]}`;

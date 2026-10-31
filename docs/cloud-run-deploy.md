@@ -77,9 +77,18 @@ Requests to informational pages on that hostname redirect permanently (308)
 to the search origin, preserving query parameters for campaign attribution.
 The `.html` and trailing-slash variants of those pages redirect as well.
 
-`PUBLIC_BASE_URL` continues to identify the LINE mini app endpoint. The app
-root, group/invite routes and API routes are not redirected between hosts,
-so LIFF initialization and existing sessions keep their current origin.
+The search hostname's `/` and `/index.html` return a non-cacheable HTTP 302
+to `https://miniapp.line.me/2010522907-PfrCcL2F`. Query parameters are not
+forwarded. LINE provides the device-specific launch or QR guidance.
+These entry URLs are excluded from the sitemap; `/service-overview` remains
+the search landing page and is served as HTML without LINE Login.
+
+`PUBLIC_BASE_URL` continues to identify the LINE mini app endpoint on
+`https://waritomo-46929413374.asia-northeast1.run.app`. Its root and
+`/index.html`, group/invite routes and API routes continue serving normally.
+Before deploying, confirm the actual LINE Developers endpoint uses this
+hostname; if it uses the search hostname's root, stop deployment to avoid a
+MINI App launch loop. No LINE Developers settings are changed by this update.
 If the search origin changes, update the redirect configuration in
 `src/server.js`, all HTML canonical links, `robots.txt`, `sitemap.xml` and
 Search Console together.

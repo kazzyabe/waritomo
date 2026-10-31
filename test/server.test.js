@@ -106,7 +106,8 @@ test("sitemap pages serve one matching canonical URL on the verified search orig
   const sitemap = await request("/sitemap.xml");
   assert.equal(sitemap.status, 200);
   const urls = [...(await sitemap.text()).matchAll(/<loc>(.*?)<\/loc>/g)].map((match) => match[1]);
-  assert.equal(urls.length, 6);
+  assert.equal(urls.length, 5);
+  assert.ok(!urls.includes("https://waritomo-a5cm7qenuq-an.a.run.app/"));
   assert.ok(urls.includes("https://waritomo-a5cm7qenuq-an.a.run.app/service-overview"));
 
   const robots = await (await request("/robots.txt")).text();
@@ -145,12 +146,34 @@ test("informational pages redirect alternate hosts and URL variants, preserving 
   assert.equal(head.body, "");
 });
 
-test("search redirects leave the LIFF app, group links, API and local development on their existing origin", async () => {
+test("the public root opens the MINI App without forwarding query parameters", async () => {
+  for (const method of ["GET", "HEAD"]) {
+    for (const path of ["/", "/index.html", "/?utm_source=web", "/index.html?redirect=https://example.com/"]) {
+      const response = await requestOnHost(path, "waritomo-a5cm7qenuq-an.a.run.app", method);
+      assert.equal(response.status, 302, `${method} ${path}`);
+      assert.equal(response.headers.location, "https://miniapp.line.me/2010522907-PfrCcL2F");
+      assert.equal(response.headers["cache-control"], "no-store");
+      assert.equal(response.body, "");
+    }
+  }
+});
+
+test("the public entry redirect leaves group links, APIs and the LIFF endpoint usable", async () => {
   for (const path of ["/", "/index.html", "/groups/grp_1", "/groups/grp_1/invite?token=test", "/api/config"]) {
     const response = await requestOnHost(path, "waritomo-46929413374.asia-northeast1.run.app");
     assert.equal(response.status, 200, path);
     assert.equal(response.headers.location, undefined);
   }
+
+  for (const path of ["/groups/grp_1/invite?token=test", "/groups/grp_1/settlement", "/api/config"]) {
+    const response = await requestOnHost(path, "waritomo-a5cm7qenuq-an.a.run.app");
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.location, undefined);
+  }
+
+  const localRoot = await request("/", { redirect: "manual" });
+  assert.equal(localRoot.status, 200);
+  await localRoot.text();
 
   const localPage = await request("/service-overview", { redirect: "manual" });
   assert.equal(localPage.status, 200);
